@@ -1,0 +1,20 @@
+:root { --bg: #fff; --fg: #111; --muted: #666; --line: #ddd; --accent: #2563eb; font-family: system-ui, sans-serif; }
+body { margin: 0; color: var(--fg); background: var(--bg); }
+#app { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+aside { border-right: 1px solid var(--line); padding: 12px; overflow-y: auto; font-size: 13px; }
+main { padding: 12px 20px; min-width: 0; }
+nav.tabs button { margin-right: 6px; padding: 6px 10px; border: 1px solid var(--line); background: #f7f7f7; cursor: pointer; }
+nav.tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+fieldset { border: 1px solid var(--line); margin: 0 0 10px; padding: 8px; }
+label { display: block; margin: 4px 0; }
+label input, label select { width: 100%; box-sizing: border-box; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+dfn { border-bottom: 1px dotted var(--accent); font-style: normal; cursor: help; }
+.gloss { background: #f3f6ff; border-left: 3px solid var(--accent); padding: 6px 8px; margin: 4px 0; font-size: 12px; }
+.readout { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin: 10px 0; }
+.readout div { border: 1px solid var(--line); padding: 8px; }
+.readout b { display: block; font-size: 18px; }
+.warn { color: #b45309; }
+.chart { width: 100%; }
+.inferred { color: var(--muted); }
+.placeholder { color: #b45309; font-weight: bold; }
