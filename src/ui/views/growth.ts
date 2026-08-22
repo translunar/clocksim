@@ -71,11 +71,16 @@ export const growthView: ViewFactory = (root, store, client) => {
       // different duration than the one used to build `times`, and its re-derived logTimes grid
       // came out a different length (I5).
       const mcDuration = Math.max(s.scenario.duration, req?.duration ?? 0);
-      status.textContent = 'running Monte Carlo…';
-      pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: mcDuration, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
-        if (m.type === 'mc-progress' || m.type === 'mc-done') { lastMc = m; renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
-        if (m.type === 'mc-done' || m.type === 'error') { pending = null; if (m.type === 'error') status.textContent = m.message; }
-      });
+      const samples = Math.round(mcDuration / s.scenario.dt);
+      if (samples > 2_000_000) {
+        status.textContent = 'Monte Carlo skipped: duration/dt exceeds 2,000,000 samples — increase dt or shorten duration';
+      } else {
+        status.textContent = 'running Monte Carlo…';
+        pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: mcDuration, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
+          if (m.type === 'mc-progress' || m.type === 'mc-done') { lastMc = m; renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
+          if (m.type === 'mc-done' || m.type === 'error') { pending = null; if (m.type === 'error') status.textContent = m.message; }
+        });
+      }
     } else renderAll(lastMc);
   };
   update(store.get());

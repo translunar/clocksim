@@ -91,6 +91,21 @@ describe('estimate methods', () => {
     expect(() => contributions(g, { ...baseOpts, method: 'constant', Tm: 0, fix: noFix }, t)).toThrow();
   });
 
+  it('thermalError caps its internal sample count so a tiny dt over a long span still completes with a close-enough finite value', () => {
+    const g2 = spec({ thermal: { tempco: 1e-6, tauTh: 0 } });
+    const times = Float64Array.from([1e3]);
+    const opts = (dt: number): EstimateOptions => ({ ...baseOpts, method: 'constant', fix: noFix, dt, profile: { kind: 'ramp' as const, rate: 0.01 }, includeThermal: true });
+    const coarse = contributions(g2, opts(1), times);
+    const fine = contributions(g2, opts(1e-6), times);
+    expect(Number.isFinite(fine.thermal[0])).toBe(true);
+    expect(fine.thermal[0]).toBeGreaterThan(0);
+    // Both the coarse (dt=1) and fine (dt=1e-6, internally coarsened by the cap) integrations are
+    // left-Riemann approximations of the same continuous ramp*t^2/2 integral; the ~0.1% gap is the
+    // dt=1 case's own discretization error, not something the cap introduces, so allow a bit more
+    // than that rather than asserting exact equality.
+    expect(Math.abs(fine.thermal[0]! / coarse.thermal[0]! - 1)).toBeLessThan(2e-3);
+  });
+
   it('estimateSigma excludes thermal from the total, even though contributions.thermal is nonzero', () => {
     const g2 = spec({ thermal: { tempco: 1e-6, tauTh: 0 } });
     const o: EstimateOptions = { ...baseOpts, method: 'constant', fix: noFix, dt: 0.01, profile: { kind: 'ramp', rate: 0.01 }, includeThermal: true };

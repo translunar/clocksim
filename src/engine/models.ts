@@ -76,14 +76,18 @@ function thermalError(spec: DeviceSpec, o: EstimateOptions, times: Float64Array)
   const out = new Float64Array(times.length);
   if (!spec.thermal || !o.includeThermal || o.profile.kind === 'none') return out;
   const tEnd = times[times.length - 1] ?? 0;
-  const n = Math.max(2, Math.ceil(tEnd / o.dt) + 1);
-  const T = deviceTemperature(o.profile, spec.thermal.tauTh, o.dt, n);
+  // Cap the internal integration sample count at 2,000,000 by coarsening the step beyond what a
+  // tiny user-entered `dt` would otherwise give (a long duration at dt=1e-6 would else allocate a
+  // billion-sample array here); this is the analytic-side counterpart of growth.ts's MC skip guard.
+  const step = Math.max(o.dt, tEnd / 2e6);
+  const n = Math.max(2, Math.ceil(tEnd / step) + 1);
+  const T = deviceTemperature(o.profile, spec.thermal.tauTh, step, n);
   const lvl = errorLevel(spec.domain);
   let acc1 = 0, acc2 = 0, j = 0;
   for (let i = 0; i < n; i++) {
-    while (j < times.length && times[j]! <= i * o.dt + 1e-12) { out[j] = Math.abs(lvl === 1 ? acc1 : acc2); j++; }
-    acc1 += spec.thermal.tempco * T[i]! * o.dt;
-    acc2 += acc1 * o.dt;
+    while (j < times.length && times[j]! <= i * step + 1e-12) { out[j] = Math.abs(lvl === 1 ? acc1 : acc2); j++; }
+    acc1 += spec.thermal.tempco * T[i]! * step;
+    acc2 += acc1 * step;
   }
   while (j < times.length) { out[j] = Math.abs(lvl === 1 ? acc1 : acc2); j++; }
   return out;
