@@ -70,6 +70,42 @@ describe('estimate methods', () => {
     const c = contributions(g2, { ...baseOpts, method: 'constant', fix: noFix, dt: 0.01, profile: { kind: 'ramp', rate: 0.01 }, includeThermal: true }, Float64Array.from([100]));
     expect(c.thermal[0]).toBeCloseTo(1e-6 * 0.01 * 100 * 100 / 2, 7); // left-Riemann sum at dt=0.01
   });
+  it('gmTwice (accel) tends to constant as Tm -> infinity and to white-like at long t', () => {
+    const a = spec({ domain: 'accel', states: 3, coefs: { ...z, B: 1e-4 } });
+    const cInf = contributions(a, { ...baseOpts, method: 'gm', fix: noFix, Tm: 1e12 }, t);
+    for (let i = 0; i < t.length; i++) expect(cInf.B[i]! / (1e-4 * t[i]! ** 2 / 2)).toBeCloseTo(1, 4);
+    const cShort = contributions(a, { ...baseOpts, method: 'gm', fix: noFix, Tm: 1 }, t);
+    expect(cShort.B[3]! / Math.sqrt(2 * 1e-8 * 1 * 1e4 ** 3 / 3)).toBeCloseTo(1, 3);
+  });
+  it('rejects non-positive Tm', () => {
+    expect(() => contributions(g, { ...baseOpts, method: 'constant', Tm: 0, fix: noFix }, t)).toThrow();
+  });
+});
+
+describe('gm continuity across the Taylor/closed-form threshold', () => {
+  // Independent reference (one Taylor order beyond production's, of the same closed forms
+  // gmOnce/gmTwice rewrite to) — verified against a 50-digit Decimal reference in Python during
+  // review to agree with the exact closed form to <1e-15 relative near x = 0.03.
+  const hRef = (x: number) => x ** 2 / 2 - x ** 3 / 6 + x ** 4 / 24 - x ** 5 / 120 + x ** 6 / 720 - x ** 7 / 5040 + x ** 8 / 40320;
+  const gRef = (x: number) => x ** 4 / 8 - x ** 5 / 30 + x ** 6 / 144 - x ** 7 / 840 + x ** 8 / 5760 - x ** 9 / 45360;
+  const Tm = 100, B = 1e-5, times = [2.9, 3.1]; // x = t/Tm = 0.029, 0.031: straddles the 0.03 branch threshold
+  const noFix = { sigma: 0, cadence: 1, bias: 0 };
+  it('gmOnce (level-1) matches the closed form on both sides of the branch', () => {
+    const g = spec({ coefs: { ...z, B } });
+    const c = contributions(g, { ...baseOpts, method: 'gm', fix: noFix, Tm }, Float64Array.from(times));
+    times.forEach((t, i) => {
+      const ref = Math.sqrt(2 * B * B * Tm * Tm * hRef(t / Tm));
+      expect(c.B[i]! / ref).toBeCloseTo(1, 9);
+    });
+  });
+  it('gmTwice (level-2/accel) matches the closed form on both sides of the branch', () => {
+    const a = spec({ domain: 'accel', states: 3, coefs: { ...z, B } });
+    const c = contributions(a, { ...baseOpts, method: 'gm', fix: noFix, Tm }, Float64Array.from(times));
+    times.forEach((t, i) => {
+      const ref = Math.sqrt(2 * B * B * Tm ** 4 * gRef(t / Tm));
+      expect(c.B[i]! / ref).toBeCloseTo(1, 9);
+    });
+  });
 });
 
 describe('helpers', () => {
@@ -78,10 +114,18 @@ describe('helpers', () => {
     expect(timeToRequirement(t, s, 31.6227766)).toBeCloseTo(31.6227766, 3);
     expect(timeToRequirement(t, s, 1000)).toBeNull();
   });
+  it('timeToRequirement handles a leading time of 0 without taking log(0)', () => {
+    const t = Float64Array.from([0, 1, 10, 100]), s = Float64Array.from([0, 10, 20, 100]);
+    expect(timeToRequirement(t, s, 5)).toBe(1); // crosses between t=0 and t=1; can't log-interpolate from 0
+  });
   it('steadyStateVsCadence grows with cadence', () => {
     const g = spec({ coefs: { ...z, N: 1e-4, B: 1e-5 } });
     const s = steadyStateVsCadence(g, { sigma: 1e-4, bias: 0 }, 3600, Float64Array.from([0.1, 1, 10, 100]));
     for (let i = 1; i < s.length; i++) expect(s[i]!).toBeGreaterThan(s[i - 1]!);
+  });
+  it('steadyStateVsCadence rejects non-positive Tm', () => {
+    const g = spec({ coefs: { ...z, N: 1e-4, B: 1e-5 } });
+    expect(() => steadyStateVsCadence(g, { sigma: 1e-4, bias: 0 }, 0, Float64Array.from([1]))).toThrow();
   });
   it('crossover finds where A rises above B', () => {
     const tau = Float64Array.from([1, 10, 100, 1000]);
@@ -90,5 +134,23 @@ describe('helpers', () => {
     expect(x).not.toBeNull();
     expect(x!).toBeGreaterThan(10); expect(x!).toBeLessThanOrEqual(100);
     expect(crossover(tau, a, tau, Float64Array.from([10, 10, 10, 10]))).toBeNull();
+  });
+  it('crossover finds a true interior crossing', () => {
+    const tau = Float64Array.from([1, 10, 100, 1000]);
+    const a = Float64Array.from([0.5, 1, 2, 4]), b = Float64Array.from([2, 2, 2, 2]);
+    const x = crossover(tau, a, tau, b);
+    expect(x).not.toBeNull();
+    expect(x!).toBeGreaterThan(10);
+    expect(x!).toBeLessThanOrEqual(100);
+    expect(x!).toBeCloseTo(100, 6); // A(100) == B(100) exactly: log-linear interpolation lands on the grid point
+  });
+  it('crossover ignores a non-finite sample in B without reporting a spurious early crossing', () => {
+    const tau = Float64Array.from([1, 10, 100, 1000]);
+    const a = Float64Array.from([0.5, 1, 2, 4]), b = Float64Array.from([2, NaN, 2, 2]);
+    const x = crossover(tau, a, tau, b);
+    // The NaN at tau=10 corrupts the two segments touching it (both need a finite endpoint to
+    // interpolate); only tau=1000 stays clean, so there's no sign change left in valid data —
+    // it must not fabricate a crossing from a sign recorded before the gap.
+    expect(x).toBeNull();
   });
 });

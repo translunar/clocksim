@@ -43,18 +43,23 @@ export function initialCovariance(spec: DeviceSpec, fix: FixQuality, driftKnowle
  * Variance of ∫₀ᵗ b for a stationary Gauss-Markov b with variance s², correlation Tm.
  * Rewritten in x = t/Tm: 2 s² Tm² (x + expm1(-x)). Mathematically identical to
  * 2 s² Tm (t - Tm(1 - e^{-t/Tm})); that direct form catastrophically cancels for Tm >> t
- * (returns garbage, even negative, feeding sqrt(NaN) downstream), so below x = 0.1 a
- * Taylor series is used instead of expm1 for the same reason.
+ * (returns garbage, even negative, feeding sqrt(NaN) downstream). The expm1 form itself still
+ * cancels below x ≈ 0.1 (5-decimal-digit-level relative error there), so below x = 0.03 a
+ * 5-term Taylor series of x + expm1(-x) = x²/2 - x³/6 + x⁴/24 - x⁵/120 + x⁶/720 - … is used
+ * instead; verified against a 50-digit reference that both branches agree to <1e-9 relative
+ * at the x = 0.03 boundary.
  */
 function gmOnce(s2: number, Tm: number, t: number): number {
   const x = t / Tm;
-  const h = x < 0.1 ? x * x / 2 - x ** 3 / 6 + x ** 4 / 24 : x + Math.expm1(-x);
+  const h = x < 0.03 ? x * x / 2 - x ** 3 / 6 + x ** 4 / 24 - x ** 5 / 120 + x ** 6 / 720 : x + Math.expm1(-x);
   return 2 * s2 * Tm * Tm * h;
 }
 /** Variance of ∫∫ b for the same process; same x = t/Tm rewrite and small-x Taylor guard as gmOnce. */
 function gmTwice(s2: number, Tm: number, t: number): number {
   const x = t / Tm;
-  const g = x < 0.1 ? x ** 4 / 8 - x ** 5 / 30 + x ** 6 / 144 : x ** 3 / 3 - x ** 2 / 2 + 1 - (1 + x) * Math.exp(-x);
+  const g = x < 0.03
+    ? x ** 4 / 8 - x ** 5 / 30 + x ** 6 / 144 - x ** 7 / 840 + x ** 8 / 5760
+    : x ** 3 / 3 - x ** 2 / 2 + 1 - (1 + x) * Math.exp(-x);
   return 2 * s2 * Tm ** 4 * g;
 }
 
@@ -83,6 +88,7 @@ function thermalError(spec: DeviceSpec, o: EstimateOptions, times: Float64Array)
 
 /** σ-curves per contribution. Level 1 = gyro/clock (error = ∫y), level 2 = accel (error = ∫∫y). */
 export function contributions(spec: DeviceSpec, o: EstimateOptions, times: Float64Array): Record<ContributionKey, Float64Array> {
+  if (!(o.Tm > 0)) throw new Error('Tm must be > 0');
   const n = times.length;
   const c = spec.coefs;
   const lvl = errorLevel(spec.domain);
@@ -155,6 +161,7 @@ export function timeToRequirement(times: Float64Array, sigma: Float64Array, limi
   for (let i = 0; i < times.length; i++) {
     if (sigma[i]! >= limit) {
       if (i === 0) return times[0]!;
+      if (times[i - 1]! <= 0) return times[i]!;
       const t0 = Math.log(times[i - 1]!), t1 = Math.log(times[i]!);
       const s0 = Math.log(Math.max(sigma[i - 1]!, 1e-300)), s1 = Math.log(sigma[i]!);
       const f = (Math.log(limit) - s0) / (s1 - s0);
@@ -166,6 +173,7 @@ export function timeToRequirement(times: Float64Array, sigma: Float64Array, limi
 
 /** Steady-state post-fix error √p11 as a function of fix cadence (level-1 devices, fudge mapping). */
 export function steadyStateVsCadence(spec: DeviceSpec, fix: Omit<FixQuality, 'cadence'>, Tm: number, cadences: Float64Array): Float64Array {
+  if (!(Tm > 0)) throw new Error('Tm must be > 0');
   const kEff = kEffFor(spec, 'fudge', Tm);
   const out = new Float64Array(cadences.length);
   for (let i = 0; i < cadences.length; i++) {
@@ -187,9 +195,13 @@ export function crossover(tauA: Float64Array, devA: Float64Array, tauB: Float64A
   };
   let prev: number | null = null;
   for (let i = 0; i < tauA.length; i++) {
+    const a = devA[i]!;
     const b = interpB(tauA[i]!);
-    if (b === null) continue;
-    const diff = Math.log(devA[i]!) - Math.log(b);
+    // A gap — out-of-range tau, or a non-finite/non-positive sample on either curve — can't be
+    // logged or compared; treat it as a coverage gap and drop `prev` so a stale sign from before
+    // the gap can never pair with a point after it to report a spurious crossing.
+    if (b === null || !Number.isFinite(a) || a <= 0 || !Number.isFinite(b) || b <= 0) { prev = null; continue; }
+    const diff = Math.log(a) - Math.log(b);
     if (prev !== null && prev < 0 && diff >= 0) {
       const lo = tauA[i - 1]!, hi = tauA[i]!;
       const f = -prev / (diff - prev);
