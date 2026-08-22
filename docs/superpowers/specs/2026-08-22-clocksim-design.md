@@ -15,10 +15,20 @@ during open-loop propagation:
 2. How much time error does an onboard clock accumulate over N seconds
    (2- or 3-state clock model, relativity ignored)?
 
-The central lesson: the analytic covariance models that flight filters carry
-(Farrenkopf, Bayard, 3-state clock) cannot represent flicker (bias
-instability) or environmental effects, and the tool shows exactly when and by
-how much those models become overconfident versus Monte Carlo truth.
+The tool is for PDR-level error budgeting and device selection: "what error
+can we reasonably expect from this device over this duration, and does it meet
+the requirement with margin?" Duration is the independent variable and spans
+seconds (tracker dropout) to months (clock between syncs); each noise term
+dominates a different stretch of it.
+
+The central lesson: the analytic covariance models used for budgeting
+(Farrenkopf, Bayard, 3-state clock) are exact for white and random-walk noise
+but cannot represent flicker (bias instability) or environmental effects. The
+common workaround of feeding bias instability in as a random-walk coefficient
+(`bayard_calc.m`: q₂ = B²/3600) is optimistic for durations shorter than
+~3×T_fudge and conservative beyond. The tool shows every reasonable analytic
+estimate against Monte Carlo truth across the full duration span, so the user
+can see which estimate is defensible at the duration their requirement names.
 
 **Primary audience:** the author. **Secondary:** teammates learning the material.
 Every term in the UI has a plain-English definition on hover/expand.
@@ -32,8 +42,15 @@ Every term in the UI has a plain-English definition on hover/expand.
   random-walk FM) plus linear drift, via the Kasdin (1995) fractional-difference
   filter. Gauss-Markov-sum flicker approximation as a contrast mode.
 - ADEV, MDEV, HDEV with confidence bounds; analytic asymptotes overlaid.
-- Error-growth view: Bayard/Farrenkopf analytic prediction vs Monte Carlo
-  envelope, with a user "budget" line and crossing times for both.
+- Requirements as first-class objects: (value, sigma level, duration); every
+  view reports margin against the active requirement.
+- Error-growth view over log time (1 s to ~1e7 s): stacked noise contributions
+  (post-fix initial, ARW, BI, RRW, drift, thermal), a selectable set of
+  analytic estimate methods, and the Monte Carlo envelope, with
+  time-to-requirement for each.
+- Two analytic sizing views: steady-state error vs fix cadence (gyro/accel
+  "diminishing-returns knee") and ADEV crossover / holdover vs a reference
+  (clocks).
 - Bench of N device instances; presets with cited sources; all fields editable;
   custom presets import/export as JSON; full state in URL hash.
 - Thermal: per-device tempco and first-order thermal lag driven by a shared
@@ -46,6 +63,7 @@ Every term in the UI has a plain-English definition on hover/expand.
 ### Explicitly out of v1 (phase 2 candidates)
 - Measurement updates (star tracker / GPS fixes) — open-loop only.
 - Three-cornered hat, arbitrary comparison graphs, distribution-amplifier noise.
+- Filter tuning / consistency analysis (NEES, τ_c sweeps).
 - Shared-enclosure thermal coupling, nonlinear tempco, hysteresis.
 - Scale-factor, misalignment, g-sensitivity, relativity.
 - Streaming/real-time noise generation (batch only).
@@ -93,7 +111,7 @@ Used only as the "what the filter designer actually models" contrast.
 
 Seeded PRNG (xoshiro128**); seed is part of the serialized state.
 
-### 3.4 Analytic model ("what the EKF believes")
+### 3.4 Analytic estimates ("what the budget says")
 Port of the Bayard 2-state gyro model from the fixed `bayard.py`
 (translunar/bayard PR #2), generalized to the 3-state chain:
 
@@ -102,12 +120,28 @@ Port of the Bayard 2-state gyro model from the fixed `bayard.py`
   `p₂₂ = √q₂·l`.
 - `p(t) = q₂/3·t³ + p₂₂·t² + (2p₁₂ + q₁)·t + p₁₁ + b²` (2-state); 3-state
   adds the q₃ and third-row terms per Bayard's accelerometer formulation.
-- Inputs are N, K (plus q₃ for 3-state) and b (fix bias). R (deterministic
-  drift) is not a model input: in the 3-state model drift is an estimated
-  state with uncertainty p₃₃; in the 2-state model it is simply unmodeled. **When a spec has B but no K, the model
-  applies the bayard_calc.m fudge** `K_eff = B/√T_fudge`, `T_fudge = 1 h`
-  (editable), and the legend says so. When K is present, it is used directly.
-  The model never sees flicker or thermal terms — by design.
+- 3-state takes an explicit drift-knowledge input `p₃₃` (how well the
+  drift/aging rate was characterized at the last sync or before launch); for
+  months-scale clocks `√p₃₃·t²/2` is the dominant term.
+- The model never sees flicker or thermal terms — by design.
+
+The Bayard model is exact for white + random-walk noise. The user-selectable
+part is how bias instability B enters it. Four **estimate methods**, all
+computed and plotted simultaneously; each has a glossary entry stating its
+assumption and the duration range where it is defensible, and the active
+requirement's duration highlights which applies:
+
+| Method | B enters as | Honest when |
+|---|---|---|
+| `fudge` | q₂ = B²/T_fudge (default 1 h, editable) — the `bayard_calc.m` mapping | as a bound, if T_fudge ≤ t/3; optimistic for t < 3·T_fudge by ≈√(t/3T) |
+| `constant` | random-constant bias, p₂₂ = B², no process noise: σ_θ ≈ B·t | minutes to hours; slightly low at very long t (flicker log growth) |
+| `gm` | first-order Gauss-Markov, σ = B, τ_c editable (default at ADEV knee) | t < τ_c; optimistic ∝ √(t/2τ_c) beyond |
+| `fittedK` | B ignored; K taken from the spec (or fit to the simulated ADEV's τ^{+1/2} region) | once the ADEV has turned up; still missing the floor |
+
+The error-growth view also decomposes the estimate into stacked contributions
+— post-fix initial, ARW (N√t), BI (per method), RRW (K t^{3/2}/√3), drift
+(√p₃₃ t²/2), thermal (tempco·ΔT·t) — so the user can see which term a device
+change actually buys down.
 
 ### 3.5 Monte Carlo truth
 Default 200 runs × 10⁵ samples in a Web Worker, streamed so the envelope
@@ -138,6 +172,23 @@ Flicker exact only over the simulated span; ADEV points beyond ~τ_max/10
 are drawn faded; no relativity, scale factor, misalignment, or measurement
 updates.
 
+### 3.9 Analytic sizing views (closed-loop, no simulation)
+- **Steady-state knee (gyro/accel):** `√p₁₁` vs fix cadence Δ for each bench
+  device, with the requirement line. Shows where error becomes fix-limited and
+  a better device buys nothing, and conversely the slowest cadence each device
+  tolerates.
+- **ADEV crossover / holdover (clock):** in Compare, when a device is marked
+  "reference," mark the τ where the DUT's ADEV crosses the reference's (the
+  natural disciplining time constant) and report open-loop holdover time to
+  the requirement from that point.
+
+### 3.10 Requirements
+`{ value, sigma: 1|2|3, duration }` in the domain's natural unit (deg, ns,
+m). Views report: predicted error at `duration` per estimate method and from
+Monte Carlo; time-to-requirement per method and from Monte Carlo; the
+truth/estimate ratio at `duration`. Multiple requirements may be defined; one
+is active.
+
 ## 4. Architecture
 
 Plain TypeScript, no UI framework, Vite build, Vitest tests. Engine is pure
@@ -149,7 +200,8 @@ src/
     noise.ts        powerLaw, gaussMarkovSum, prng
     deviations.ts   adev, mdev, hdev, confidence, analyticAdev(coefs)
     bench.ts        DeviceSpec, simulate(spec, dt, n, seed, env), compare(...)
-    models.ts       bayard2, bayard3 (analytic σ(t)), initialCovariance
+    models.ts       bayard2, bayard3, initialCovariance, estimate methods,
+                    contribution decomposition, steady-state vs cadence
     units.ts        datasheet ↔ SI conversions
     thermal.ts      ambient profiles, device lag
   worker/
@@ -157,7 +209,7 @@ src/
   ui/
     store.ts        reactive state, URL-hash (de)serialization
     sidebar/        bench editor, preset picker, scenario panel
-    views/          adev.ts, growth.ts, compare.ts
+    views/          adev.ts, growth.ts, compare.ts, sizing.ts
     charts/         uPlot wrappers, log axes, bands
     glossary.ts     term → definition
   presets/
@@ -184,7 +236,9 @@ for tests and for a future Node/notebook use.
 ```
 
 **Scenario:** `{ duration, dt, runs, seed, lastFix: {sigma, cadence, bias},
-temperature: profile, budget }`.
+driftKnowledge: p33 | null, temperature: profile, estimateMethods: {fudge:
+{Tfudge}, constant: {}, gm: {tauC}, fittedK: {}}, requirements: Requirement[],
+activeRequirement }`.
 
 ## 5. Testing
 
@@ -194,6 +248,11 @@ temperature: profile, budget }`.
   - ADEV/MDEV/HDEV of known series from `allantools`, compared to 1e-9.
   - Bayard σ(t) from fixed `bayard.py` for jpl_mimu + BCT fix at
     t ∈ {1, 60, 3600} s, compared to 1e-12.
+  - Estimate methods: `constant` reproduces B·t; `gm` → `constant` as τ_c→∞;
+    `fudge` equals Bayard with q₂ = B²/T_fudge. Contribution stack RSSes to
+    the total.
+  - Monte Carlo envelope for a pure-flicker spec grows ≈ B·t (within the log
+    factor) — the one test that checks the truth side against theory.
 - Unit tests: unit conversions round-trip; analytic asymptotes match simulated
   ADEV within confidence bounds for single-noise-type specs; thermal lag step
   response; DMTD with ε = 0 is independent of offset oscillator.
