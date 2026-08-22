@@ -13,6 +13,13 @@ describe('montecarlo', () => {
     expect(t[t.length - 1]).toBe(1000);
     for (let i = 1; i < t.length; i++) { expect(t[i]!).toBeGreaterThan(t[i - 1]!); expect(Math.abs(t[i]! / 0.5 - Math.round(t[i]! / 0.5))).toBeLessThan(1e-9); }
   });
+  it('logTimes last element is exactly duration, and re-running on that last element is a fixed point (round-trip length match)', () => {
+    const t = logTimes(0.7, 1000);
+    expect(t[t.length - 1]).toBe(1000);
+    const t2 = logTimes(0.7, t.at(-1)!);
+    expect(t2.length).toBe(t.length);
+  });
+
   it('drawInitial reproduces the covariance statistically', () => {
     const P = { p11: 4, p12: 1, p22: 1, p13: 0, p23: 0, p33: 0.25 };
     const p = new Prng(1); let s11 = 0, s12 = 0, s22 = 0, s33 = 0; const n = 50000;

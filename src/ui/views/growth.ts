@@ -31,13 +31,17 @@ export const growthView: ViewFactory = (root, store, client) => {
     const conv = (a: Float64Array) => Float64Array.from(a, eu.fromSI);
     const k = req?.sigma ?? 1;
 
-    const renderAll = (mc: { runs: number; p68: Float64Array; p95: Float64Array; p997: Float64Array } | null) => {
-      const mcS = mc ? mcSummary(times, mc, req) : null;
+    const renderAll = (mc: { runs: number; times: Float64Array; p68: Float64Array; p95: Float64Array; p997: Float64Array } | null) => {
+      // Use the worker's own time grid for anything derived from its curves: with the duration
+      // sent below matching what growthTimes() used, mc.times and `times` are the same values,
+      // but plotting/interpolating against mc.times keeps this correct even if that ever drifts
+      // again (I5) instead of silently misaligning the last MC point.
+      const mcS = mc ? mcSummary(mc.times, mc, req) : null;
       main.setSeries([
         ...est.map((c, i) => ({ label: `${c.method} (${k}σ)`, color: PALETTE[i + 1]!, dash: [6, 3] })),
         { label: `Monte Carlo ${k}σ`, color: PALETTE[0]!, width: 3 },
       ]);
-      main.setData(times, [...est.map(c => conv(c.scaled)), mcS ? conv(mcS.curve) : null]);
+      main.setData(mc ? mc.times : times, [...est.map(c => conv(c.scaled)), mcS ? conv(mcS.curve) : null]);
       main.clearLines();
       if (req) { main.addHLine(eu.fromSI(req.value), `requirement ${eu.fromSI(req.value)} ${eu.label} (${k}σ)`); main.addVLine(req.duration, fmtTime(req.duration)); }
       const first = est[0];
@@ -62,8 +66,13 @@ export const growthView: ViewFactory = (root, store, client) => {
       if (pending) client.cancel(pending);
       lastMc = null;
       renderAll(null);
+      // The same value growthTimes() uses (not times[times.length-1]): logTimes' dt-snapped last
+      // grid point can exceed the raw duration, so echoing that back used to hand the worker a
+      // different duration than the one used to build `times`, and its re-derived logTimes grid
+      // came out a different length (I5).
+      const mcDuration = Math.max(s.scenario.duration, req?.duration ?? 0);
       status.textContent = 'running Monte Carlo…';
-      pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: times[times.length - 1]!, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
+      pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: mcDuration, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
         if (m.type === 'mc-progress' || m.type === 'mc-done') { lastMc = m; renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
         if (m.type === 'mc-done' || m.type === 'error') { pending = null; if (m.type === 'error') status.textContent = m.message; }
       });

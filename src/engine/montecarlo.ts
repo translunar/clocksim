@@ -10,12 +10,21 @@ export interface MCRequest {
   profile: TempProfile; includeThermal: boolean; fix: FixQuality; driftKnowledge: number | null; Tm: number;
 }
 
+/**
+ * Log-spaced sample times in [dt, duration]: every point except the last is snapped to a multiple
+ * of dt (so the caller can index a fixed-dt simulation with Math.round(t/dt)), and the last point
+ * is exactly `duration` — never the dt-snapped neighbour, which can land past `duration` when
+ * frac(duration/dt) > 0.5 and would otherwise silently stretch the grid beyond what was asked for
+ * (callers that re-derive this grid from `duration` alone, e.g. a worker given the same duration,
+ * must get back an array of the same length).
+ */
 export function logTimes(dt: number, duration: number, count = 64): Float64Array {
   const lo = Math.log(dt), hi = Math.log(duration);
   const set = new Set<number>();
   for (let i = 0; i < count; i++) {
     const t = Math.exp(lo + (hi - lo) * i / (count - 1));
-    set.add(Math.max(1, Math.round(t / dt)) * dt);
+    const snapped = Math.max(1, Math.round(t / dt)) * dt;
+    if (snapped < duration) set.add(snapped);
   }
   set.add(duration);
   return Float64Array.from([...set].sort((a, b) => a - b));
