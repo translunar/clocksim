@@ -42,8 +42,19 @@ export function runOne(req: MCRequest, times: Float64Array, runIndex: number): F
   const init = drawInitial(P, prng.fork(0));
   const n = Math.round(req.duration / req.dt) + 1;
   const res = simulate(req.spec, { dt: req.dt, n, profile: req.profile, includeThermal: req.includeThermal, initial: init }, prng.fork(1));
+  // A 3-state device carries an explicit drift state, so the *nominal* aging rate R is treated
+  // as known and compensated on both sides: models.ts zeroes contributions.R for states===3, and
+  // here we subtract the same deterministic R*t^2/2 from the simulated truth. What's left in the
+  // budget is only the *uncertainty* of that estimate — the driftKnowledge (p33) draw baked into
+  // `init` above. For a 2-state device there is no drift state to carry the compensation, so the
+  // aging is left in as unmodelled and shows up as the familiar R*t^2/2 growth.
+  const compensateAging = req.spec.domain !== 'accel' && req.spec.states === 3;
   const out = new Float64Array(times.length);
-  for (let i = 0; i < times.length; i++) out[i] = Math.abs(res.error[Math.min(n - 1, Math.round(times[i]! / req.dt))]! + req.fix.bias);
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i]!;
+    const aging = compensateAging ? req.spec.coefs.R * t * t / 2 : 0;
+    out[i] = Math.abs(res.error[Math.min(n - 1, Math.round(t / req.dt))]! + req.fix.bias - aging);
+  }
   return out;
 }
 

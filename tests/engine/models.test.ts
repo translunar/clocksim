@@ -65,6 +65,16 @@ describe('estimate methods', () => {
     const c = contributions(ck, { ...baseOpts, method: 'constant', fix: noFix, driftKnowledge: 1e-20 }, t);
     for (let i = 0; i < t.length; i++) expect(c.initial[i]).toBeCloseTo(1e-10 * t[i]! ** 2 / 2, 18);
   });
+  it('constant-method R contribution is zero for 3-state (compensated) and R t^2/2 for 2-state', () => {
+    const R = 1e-12;
+    const c3 = spec({ domain: 'clock', states: 3, coefs: { ...z, R } });
+    const r3 = contributions(c3, { ...baseOpts, method: 'constant', fix: noFix }, t);
+    for (let i = 0; i < t.length; i++) expect(r3.R[i]).toBe(0);
+    const c2 = spec({ domain: 'clock', states: 2, coefs: { ...z, R } });
+    const r2 = contributions(c2, { ...baseOpts, method: 'constant', fix: noFix }, t);
+    for (let i = 0; i < t.length; i++) expect(r2.R[i]).toBeCloseTo(R * t[i]! * t[i]! / 2, 20);
+  });
+
   it('thermal contribution integrates tempco * T_dev', () => {
     const g2 = spec({ thermal: { tempco: 1e-6, tauTh: 0 } });
     const c = contributions(g2, { ...baseOpts, method: 'constant', fix: noFix, dt: 0.01, profile: { kind: 'ramp', rate: 0.01 }, includeThermal: true }, Float64Array.from([100]));

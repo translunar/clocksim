@@ -30,6 +30,28 @@ describe('montecarlo', () => {
     expect(p68[last]! / (1e-3 * Math.sqrt(times[last]!))).toBeGreaterThan(0.8);
     expect(p68[last]! / (1e-3 * Math.sqrt(times[last]!))).toBeLessThan(1.25);
   });
+  it('3-state clock truth compensates the deterministic aging that models.ts also zeroes; 2-state truth carries it', () => {
+    // Both use identical simulated y (bench.ts adds c.R unconditionally on states), so any
+    // difference between the two envelopes below is purely runOne's aging subtraction.
+    const R = 1e-12;
+    const base = { dt: 1, duration: 1000, runs: 3, seed: 1, profile: { kind: 'none' as const }, includeThermal: false, fix: { sigma: 0, cadence: 1, bias: 0 }, driftKnowledge: null, Tm: 1000 };
+    const times = Float64Array.from([1000]);
+
+    const spec3 = spec({ domain: 'clock', states: 3, coefs: { ...z, R } });
+    const env3 = new Envelope(times);
+    for (let r = 0; r < base.runs; r++) env3.add(runOne({ ...base, spec: spec3 }, times, r));
+    // Compensated: what's left is only the Euler-integration discretization of the subtraction
+    // (the sim integrates R as a discrete Riemann sum; the compensation is the continuous
+    // R*t^2/2), which is ~5e-10 here — three orders of magnitude below the uncompensated value.
+    expect(env3.percentile(PERCENTILES.p68)[0]!).toBeLessThan(1e-8);
+
+    const spec2 = spec({ domain: 'clock', states: 2, coefs: { ...z, R } });
+    const env2 = new Envelope(times);
+    for (let r = 0; r < base.runs; r++) env2.add(runOne({ ...base, spec: spec2 }, times, r));
+    const analyticAging = R * 1000 * 1000 / 2;
+    expect(env2.percentile(PERCENTILES.p68)[0]! / analyticAging).toBeCloseTo(1, 2);
+  });
+
   it('pure flicker envelope grows roughly like B t (within the log factor)', () => {
     const req = { spec: spec({ coefs: { ...z, B: 1e-4 } }), dt: 1, duration: 2000, runs: 200, seed: 3, profile: { kind: 'none' as const }, includeThermal: false, fix: { sigma: 0, cadence: 1, bias: 0 }, driftKnowledge: null, Tm: 1000 };
     const times = logTimes(req.dt, req.duration, 16);
