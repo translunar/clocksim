@@ -1,0 +1,5 @@
+{ "id": "ocxo", "name": "OCXO (good, e.g. MV89 class)", "domain": "clock", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 2e-12, "B": 5e-13, "K": 0, "D": 0, "R": 1e-10 },
+  "thermal": { "tempco": 0.02, "tauTh": 600 },
+  "source": "Class values from Morion MV89 / Vectron OCXO datasheets: σy(1 s) 2e-12, floor ~5e-13, aging 1e-10/day, 2e-11 over temp range. Inferred from class, not one part.",
+  "inferred": ["N", "B", "R", "tempco"] }

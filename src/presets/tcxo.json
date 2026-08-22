@@ -1,0 +1,5 @@
+{ "id": "tcxo", "name": "TCXO (generic)", "domain": "clock", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 1e-9, "B": 1e-9, "K": 0, "D": 0, "R": 3e-9 },
+  "thermal": { "tempco": 5, "tauTh": 10 },
+  "source": "Generic TCXO class: σy(1 s) ~1e-9, floor ~1e-9, aging ~1 ppm/yr (3e-9/day), ±0.5 ppm over −40..85 °C (~5 ppb/K). All inferred.",
+  "inferred": ["N", "B", "R", "tempco"] }

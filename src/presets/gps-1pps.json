@@ -1,0 +1,5 @@
+{ "id": "gps-1pps", "name": "GPS timing reference (1PPS)", "domain": "clock", "states": 2,
+  "coefs": { "Q": 10, "F": 0, "N": 0, "B": 0, "K": 0, "D": 0, "R": 0 },
+  "thermal": null,
+  "source": "Typical timing receiver 1PPS: ~10 ns white phase jitter, no long-term error (disciplined to GPS time).",
+  "inferred": ["Q"] }

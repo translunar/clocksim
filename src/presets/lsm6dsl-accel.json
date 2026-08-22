@@ -1,0 +1,5 @@
+{ "id": "lsm6dsl-accel", "name": "LSM6DSL (consumer MEMS accel)", "domain": "accel", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 80, "B": 30, "K": 0, "D": 0, "R": 0 },
+  "thermal": { "tempco": 100, "tauTh": 30 },
+  "source": "ST LSM6DSL datasheet: acceleration noise density 80 µg/√Hz; offset vs temperature ±0.1 mg/°C. B inferred.",
+  "inferred": ["B"] }

@@ -1,0 +1,22 @@
+import lsm6dslGyro from './lsm6dsl-gyro.json';
+import stim300Gyro from './stim300-gyro.json';
+import mg364Gyro from './m-g364-gyro.json';
+import sdi500Gyro from './sdi500-gyro.json';
+import mimuGyro from './mimu-gyro.json';
+import ln100Gyro from './ln100-gyro.json';
+import lsm6dslAccel from './lsm6dsl-accel.json';
+import stim300Accel from './stim300-accel.json';
+import qa2000Accel from './qa2000-accel.json';
+import tcxo from './tcxo.json';
+import ocxo from './ocxo.json';
+import csac from './csac.json';
+import prs10 from './prs10-rb.json';
+import rafs from './rafs.json';
+import minirafs from './minirafs.json';
+import cesium from './cesium-5071a.json';
+import hmaser from './h-maser.json';
+import gps from './gps-1pps.json';
+import { validatePreset, type Preset } from '../engine/presets';
+
+const raw: unknown[] = [lsm6dslGyro, stim300Gyro, mg364Gyro, sdi500Gyro, mimuGyro, ln100Gyro, lsm6dslAccel, stim300Accel, qa2000Accel, tcxo, ocxo, csac, prs10, rafs, minirafs, cesium, hmaser, gps];
+export const PRESETS: Preset[] = raw.map(p => { if (!validatePreset(p)) throw new Error('invalid preset ' + JSON.stringify(p)); return p; });

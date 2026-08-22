@@ -1,0 +1,5 @@
+{ "id": "minirafs", "name": "miniRAFS (placeholder)", "domain": "clock", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 6e-12, "B": 1e-14, "K": 0, "D": 0, "R": 6e-14 },
+  "thermal": { "tempco": 0.001, "tauTh": 1800 },
+  "source": "PLACEHOLDER: no open datasheet found; values set to 2× RAFS. Replace with your datasheet values.",
+  "inferred": ["N", "B", "R", "tempco"], "placeholder": true }

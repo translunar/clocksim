@@ -1,0 +1,5 @@
+{ "id": "csac", "name": "Microchip SA.45s CSAC", "domain": "clock", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 3e-10, "B": 6e-12, "K": 0, "D": 0, "R": 3e-11 },
+  "thermal": { "tempco": 0.006, "tauTh": 60 },
+  "source": "Microchip SA.45s datasheet: ADEV 3e-10 @1 s, 1e-11 @1000 s; aging <9e-10/month (3e-11/day); 5e-10 over −10..70 °C. Floor inferred.",
+  "inferred": ["B"] }

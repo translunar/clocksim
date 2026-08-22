@@ -1,0 +1,5 @@
+{ "id": "rafs", "name": "RAFS (GPS-class rubidium, from open literature)", "domain": "clock", "states": 3,
+  "coefs": { "Q": 0, "F": 0, "N": 3e-12, "B": 5e-15, "K": 0, "D": 0, "R": 3e-14 },
+  "thermal": { "tempco": 0.0005, "tauTh": 3600 },
+  "source": "Inferred from open ION/PTTI papers on GPS IIF RAFS on-orbit ADEV (~1e-14 at 1 day, floor few e-15); drift few e-14/day. PLACEHOLDER: replace with your datasheet values.",
+  "inferred": ["N", "B", "R", "tempco"], "placeholder": true }

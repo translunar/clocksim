@@ -1,0 +1,5 @@
+{ "id": "mimu-gyro", "name": "Honeywell MIMU class (RLG, Bayard memo)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.0083, "B": 0.0167, "K": 0, "D": 0, "R": 0 },
+  "thermal": null,
+  "source": "Bayard 2000 EM-3455-00-005 via translunar/bayard: ARW 0.025/3 °/√h, BI 0.05/3 °/h (3σ→1σ).",
+  "inferred": [] }

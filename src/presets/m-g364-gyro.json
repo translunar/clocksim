@@ -1,0 +1,5 @@
+{ "id": "m-g364-gyro", "name": "Epson M-G364PDCA (MEMS IMU gyro)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.09, "B": 2.2, "K": 0, "D": 0, "R": 0 },
+  "thermal": { "tempco": 1, "tauTh": 120 },
+  "source": "Epson M-G364PDCA datasheet: ARW 0.09 °/√h, bias instability 2.2 °/h (values used in translunar/bayard). tempco inferred.",
+  "inferred": ["tempco"] }

@@ -1,0 +1,5 @@
+{ "id": "cesium-5071a", "name": "5071A high-performance cesium beam", "domain": "clock", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 5e-12, "B": 5e-15, "K": 0, "D": 0, "R": 0 },
+  "thermal": null,
+  "source": "Microsemi 5071A datasheet (high-performance tube): ADEV 5e-12 @1 s, 8.5e-14 @1e4 s, ≤1e-14 @5 days; aging <1e-14/yr (set 0); tempco negligible.",
+  "inferred": [] }

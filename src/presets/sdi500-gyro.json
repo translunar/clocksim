@@ -1,0 +1,5 @@
+{ "id": "sdi500-gyro", "name": "SDI500 class (tactical quartz MEMS gyro)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.02, "B": 1.0, "K": 0, "D": 0, "R": 0 },
+  "thermal": null,
+  "source": "Values from translunar/bayard references/bayard_method.m (SDI500a): ARW 0.02 °/√h, BI 1 °/h.",
+  "inferred": [] }

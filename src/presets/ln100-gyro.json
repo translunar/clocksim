@@ -1,0 +1,5 @@
+{ "id": "ln100-gyro", "name": "LN-100 class (navigation-grade RLG)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.0007, "B": 0.003, "K": 0, "D": 0, "R": 0 },
+  "thermal": null,
+  "source": "Bayard 2000 EM-3455-00-005 via translunar/bayard: ARW 0.0007 °/√h, BI 0.003 °/h.",
+  "inferred": [] }

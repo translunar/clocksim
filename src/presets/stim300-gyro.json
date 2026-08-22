@@ -1,0 +1,5 @@
+{ "id": "stim300-gyro", "name": "Sensonor STIM300 (tactical MEMS gyro)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.15, "B": 0.3, "K": 0, "D": 0, "R": 0 },
+  "thermal": { "tempco": 0.5, "tauTh": 120 },
+  "source": "Sensonor STIM300 datasheet: ARW 0.15 °/√h, bias instability 0.3 °/h. tempco inferred.",
+  "inferred": ["tempco"] }

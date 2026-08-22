@@ -1,0 +1,5 @@
+{ "id": "lsm6dsl-gyro", "name": "LSM6DSL (consumer MEMS gyro)", "domain": "gyro", "states": 2,
+  "coefs": { "Q": 0, "F": 0, "N": 0.24, "B": 3, "K": 0, "D": 0, "R": 0 },
+  "thermal": { "tempco": 36, "tauTh": 30 },
+  "source": "ST LSM6DSL datasheet: rate noise density 4 mdps/√Hz (= 0.24 °/√h); bias vs temperature ±0.01 dps/°C (= 36 °/h/K). B inferred: typical consumer MEMS.",
+  "inferred": ["B"] }
