@@ -13,12 +13,24 @@ export function h(tag: string, attrs: Attrs = {}, ...children: (Node | string | 
   return el;
 }
 
-export function numInput(label: string, value: number, onChange: (v: number) => void, opts: { step?: number; min?: number; term?: string; unit?: string } = {}): HTMLElement {
-  const input = h('input', { type: 'number', value: String(value), step: opts.step ?? 'any', min: opts.min, on: { change: e => { const v = Number((e.target as HTMLInputElement).value); if (Number.isFinite(v)) onChange(v); } } });
+/**
+ * Deterministic, slug-safe key for a control, built from panel/field name parts
+ * (e.g. ['scenario', 'duration'] -> 'scenario:duration'). Used as the data-key
+ * attribute so mountSidebar can restore focus and re-associate controls across
+ * full re-renders.
+ */
+export function controlKey(parts: string[]): string {
+  return parts
+    .map(p => String(p).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'x')
+    .join(':');
+}
+
+export function numInput(label: string, value: number, onChange: (v: number) => void, opts: { step?: number; min?: number; term?: string; unit?: string; key?: string } = {}): HTMLElement {
+  const input = h('input', { type: 'number', value: String(value), step: opts.step ?? 'any', min: opts.min, 'data-key': opts.key, on: { change: e => { const v = Number((e.target as HTMLInputElement).value); if (Number.isFinite(v)) onChange(v); } } });
   return h('label', {}, opts.term ? dfn(opts.term, label) : label, opts.unit ? ` [${opts.unit}]` : '', input);
 }
 
-export function select(label: string, options: { value: string; label: string }[], value: string, onChange: (v: string) => void): HTMLElement {
-  const sel = h('select', { on: { change: e => onChange((e.target as HTMLSelectElement).value) } }, ...options.map(o => h('option', { value: o.value, selected: o.value === value ? 'selected' : undefined }, o.label)));
+export function select(label: string | Node, options: { value: string; label: string }[], value: string, onChange: (v: string) => void, opts: { key?: string } = {}): HTMLElement {
+  const sel = h('select', { 'data-key': opts.key, on: { change: e => onChange((e.target as HTMLSelectElement).value) } }, ...options.map(o => h('option', { value: o.value, selected: o.value === value ? 'selected' : undefined }, o.label)));
   return h('label', {}, label, sel);
 }

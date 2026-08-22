@@ -20,6 +20,15 @@ export interface Scenario {
 export type View = 'adev' | 'growth' | 'compare' | 'sizing';
 export interface AppState { bench: BenchDevice[]; selected: string | null; scenario: Scenario; view: View }
 
+/** Returns `base` if unused among `existing`, else the first `base-2`, `base-3`, … that is free. */
+export function uniqueId(base: string, existing: Iterable<string>): string {
+  const seen = new Set(existing);
+  if (!seen.has(base)) return base;
+  let n = 2;
+  while (seen.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
 export function fromPreset(p: Preset, id = p.id): BenchDevice {
   return { ...structuredClone(p), id, flickerMode: 'exact', gmTaus: [10, 100, 1000] };
 }
