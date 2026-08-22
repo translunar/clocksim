@@ -48,9 +48,9 @@ Every term in the UI has a plain-English definition on hover/expand.
   (post-fix initial, ARW, BI, RRW, drift, thermal), a selectable set of
   analytic estimate methods, and the Monte Carlo envelope, with
   time-to-requirement for each.
-- Two analytic sizing views: steady-state error vs fix cadence (gyro/accel
-  "diminishing-returns knee") and ADEV crossover / holdover vs a reference
-  (clocks).
+- Two analytic sizing views: steady-state error vs fix cadence (gyro/clock
+  "diminishing-returns knee"; accelerometers are a v1 limitation — see §3.9)
+  and ADEV crossover / holdover vs a reference (clocks).
 - Bench of N device instances; presets with cited sources; all fields editable;
   custom presets import/export as JSON; full state in URL hash.
 - Thermal: per-device tempco and first-order thermal lag driven by a shared

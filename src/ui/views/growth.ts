@@ -63,7 +63,7 @@ export const growthView: ViewFactory = (root, store, client) => {
     const key = JSON.stringify([spec, s.scenario.dt, s.scenario.duration, s.scenario.runs, s.scenario.seed, s.scenario.fix, s.scenario.driftKnowledge, s.scenario.temperature, s.scenario.includeThermal, effectiveTm(s.scenario), req?.duration]);
     if (key !== lastKey) {
       lastKey = key;
-      if (pending) client.cancel(pending);
+      if (pending) { client.cancel(pending); pending = null; }
       lastMc = null;
       renderAll(null);
       // The same value growthTimes() uses (not times[times.length-1]): logTimes' dt-snapped last
