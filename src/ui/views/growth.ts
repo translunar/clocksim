@@ -17,6 +17,7 @@ export const growthView: ViewFactory = (root, store, client) => {
   const main = new LogLogChart(mainEl, { xLabel: 't since last fix (s)', yLabel: 'error' });
   const stack = new LogLogChart(stackEl, { xLabel: 't since last fix (s)', yLabel: 'σ contribution' });
   let pending: string | null = null, lastKey = '';
+  let lastMc: { runs: number; times: Float64Array; p68: Float64Array; p95: Float64Array; p997: Float64Array } | null = null;
 
   const update = (s: AppState) => {
     const d = s.bench.find(x => x.id === s.selected);
@@ -34,7 +35,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       const mcS = mc ? mcSummary(times, mc, req) : null;
       main.setSeries([
         ...est.map((c, i) => ({ label: `${c.method} (${k}σ)`, color: PALETTE[i + 1]!, dash: [6, 3] })),
-        { label: mc ? `Monte Carlo ${k}σ (${mc.runs} runs)` : 'Monte Carlo', color: PALETTE[0]!, width: 3 },
+        { label: `Monte Carlo ${k}σ`, color: PALETTE[0]!, width: 3 },
       ]);
       main.setData(times, [...est.map(c => conv(c.scaled)), mcS ? conv(mcS.curve) : null]);
       main.clearLines();
@@ -57,13 +58,14 @@ export const growthView: ViewFactory = (root, store, client) => {
     if (key !== lastKey) {
       lastKey = key;
       if (pending) client.cancel(pending);
+      lastMc = null;
       renderAll(null);
       status.textContent = 'running Monte Carlo…';
       pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: times[times.length - 1]!, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
-        if (m.type === 'mc-progress' || m.type === 'mc-done') { renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
+        if (m.type === 'mc-progress' || m.type === 'mc-done') { lastMc = m; renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
         if (m.type === 'mc-done' || m.type === 'error') { pending = null; if (m.type === 'error') status.textContent = m.message; }
       });
-    } else renderAll(null);
+    } else renderAll(lastMc);
   };
   update(store.get());
   return { update, destroy: () => { if (pending) client.cancel(pending); main.destroy(); stack.destroy(); } };
