@@ -39,4 +39,27 @@ describe('store', () => {
     s.bench[0]!.flickerMode = 'gmSum';
     expect(benchToSpec(s.bench[0]!).flickerMode).toBe('gmSum');
   });
+  it('sanitizes malformed scenario/view fields from an untrusted hash', () => {
+    const s = defaultState();
+    s.scenario.Tm = -5;
+    s.scenario.estimateMethods = ['bogus'] as unknown as typeof s.scenario.estimateMethods;
+    s.scenario.requirements = [{ id: 'r', value: -1, sigma: 3, duration: 600 }];
+    const raw = JSON.parse(atob(toHash(s).replace(/-/g, '+').replace(/_/g, '/'))) as Record<string, unknown>;
+    raw.view = 'nope';
+    const h = btoa(JSON.stringify(raw)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const back = fromHash(h);
+    expect(back).not.toBeNull();
+    expect(back!.scenario.Tm).toBe('auto');
+    expect(back!.view).toBe('adev');
+    expect(back!.scenario.estimateMethods).toEqual(defaultState().scenario.estimateMethods);
+    expect(back!.scenario.requirements).toEqual([]);
+    expect(back!.scenario.activeRequirement).toBeNull();
+  });
+  it('falls back to the first bench id when selected names an unknown device', () => {
+    const s = defaultState();
+    s.selected = 'not-a-device';
+    const back = fromHash(toHash(s));
+    expect(back).not.toBeNull();
+    expect(back!.selected).toBe(s.bench[0]!.id);
+  });
 });

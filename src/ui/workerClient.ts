@@ -17,4 +17,5 @@ export class SimClient {
     return msg.id;
   }
   cancel(id: string): void { this.worker.postMessage({ type: 'cancel', id } satisfies WorkerRequest); this.handlers.delete(id); }
+  destroy(): void { this.worker.terminate(); this.handlers.clear(); }
 }

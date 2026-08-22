@@ -1,4 +1,6 @@
-import { type AppState, defaultState, isBenchDevice } from './state';
+import { type AppState, type View, defaultState, isBenchDevice, sanitizeScenario } from './state';
+
+const VALID_VIEWS = new Set<View>(['adev', 'growth', 'compare', 'sizing']);
 
 export class Store {
   private listeners = new Set<(s: AppState) => void>();
@@ -21,6 +23,11 @@ export function fromHash(h: string): AppState | null {
     const raw = JSON.parse(b64.dec(h)) as Partial<AppState>;
     if (!raw || !Array.isArray(raw.bench) || !raw.bench.every(isBenchDevice) || !raw.scenario) return null;
     const d = defaultState();
-    return { bench: raw.bench, selected: raw.selected ?? raw.bench[0]?.id ?? null, scenario: { ...d.scenario, ...raw.scenario }, view: raw.view ?? 'adev' };
+    const bench = raw.bench;
+    const scenario = sanitizeScenario(raw.scenario, d.scenario);
+    const view: View = typeof raw.view === 'string' && VALID_VIEWS.has(raw.view as View) ? (raw.view as View) : 'adev';
+    const selected =
+      typeof raw.selected === 'string' && bench.some(b => b.id === raw.selected) ? raw.selected : (bench[0]?.id ?? null);
+    return { bench, selected, scenario, view };
   } catch { return null; }
 }

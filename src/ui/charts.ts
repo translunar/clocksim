@@ -11,18 +11,31 @@ export class LogLogChart {
   private lines: { axis: 'x' | 'y'; v: number; label: string }[] = [];
   private data: uPlot.AlignedData = [[]];
   private bands: [number, number][] = [];
+  private ro: ResizeObserver;
 
   constructor(private el: HTMLElement, private opts: { xLabel: string; yLabel: string; title?: string }) {
-    new ResizeObserver(() => this.plot?.setSize(this.size())).observe(el);
+    this.ro = new ResizeObserver(() => this.plot?.setSize(this.size()));
+    this.ro.observe(el);
   }
   private size() { return { width: Math.max(300, this.el.clientWidth), height: Math.max(240, Math.round(this.el.clientWidth * 0.55)) }; }
 
-  setSeries(defs: SeriesDef[]): void { this.defs = defs; this.rebuild(); }
-  setBands(pairs: [number, number][]): void { this.bands = pairs; this.rebuild(); }
+  // Rebuilding destroys and recreates the uPlot instance (loses zoom/cursor state, reallocates
+  // canvases), so only do it when the new value actually differs from what's already applied —
+  // the growth view calls setSeries on every Monte Carlo progress batch with an unchanged defs array.
+  setSeries(defs: SeriesDef[]): void {
+    if (JSON.stringify(defs) === JSON.stringify(this.defs)) return;
+    this.defs = defs;
+    this.rebuild();
+  }
+  setBands(pairs: [number, number][]): void {
+    if (JSON.stringify(pairs) === JSON.stringify(this.bands)) return;
+    this.bands = pairs;
+    this.rebuild();
+  }
   addHLine(y: number, label: string): void { this.lines.push({ axis: 'y', v: y, label }); this.plot?.redraw(); }
   addVLine(x: number, label: string): void { this.lines.push({ axis: 'x', v: x, label }); this.plot?.redraw(); }
   clearLines(): void { this.lines = []; this.plot?.redraw(); }
-  destroy(): void { this.plot?.destroy(); this.plot = null; }
+  destroy(): void { this.plot?.destroy(); this.plot = null; this.ro.disconnect(); }
 
   setData(x: Float64Array, ys: (Float64Array | null)[]): void {
     const clean = (a: Float64Array | null) => a ? Array.from(a, v => (v > 0 && Number.isFinite(v) ? v : null)) : Array.from(x, () => null);
