@@ -1,6 +1,7 @@
 export const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#4b5563'];
 
 export function fmtSci(v: number): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return ''; // uPlot passes null for unlabeled log ticks
   if (v === 0) return '0';
   const e = Math.floor(Math.log10(Math.abs(v)));
   const m = v / 10 ** e;
