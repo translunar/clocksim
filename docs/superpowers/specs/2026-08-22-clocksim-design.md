@@ -26,7 +26,7 @@ The central lesson: the analytic covariance models used for budgeting
 but cannot represent flicker (bias instability) or environmental effects. The
 common workaround of feeding bias instability in as a random-walk coefficient
 (`bayard_calc.m`: q₂ = B²/3600) is optimistic for durations shorter than
-~3×T_fudge and conservative beyond. The tool shows every reasonable analytic
+~3×T_m (the model timescale, see §3.4) and conservative beyond. The tool shows every reasonable analytic
 estimate against Monte Carlo truth across the full duration span, so the user
 can see which estimate is defensible at the duration their requirement names.
 
@@ -63,7 +63,7 @@ Every term in the UI has a plain-English definition on hover/expand.
 ### Explicitly out of v1 (phase 2 candidates)
 - Measurement updates (star tracker / GPS fixes) — open-loop only.
 - Three-cornered hat, arbitrary comparison graphs, distribution-amplifier noise.
-- Filter tuning / consistency analysis (NEES, τ_c sweeps).
+- Filter tuning / consistency analysis (NEES).
 - Shared-enclosure thermal coupling, nonlinear tempco, hysteresis.
 - Scale-factor, misalignment, g-sensitivity, relativity.
 - Streaming/real-time noise generation (batch only).
@@ -129,13 +129,22 @@ The Bayard model is exact for white + random-walk noise. The user-selectable
 part is how bias instability B enters it. Four **estimate methods**, all
 computed and plotted simultaneously; each has a glossary entry stating its
 assumption and the duration range where it is defensible, and the active
-requirement's duration highlights which applies:
+requirement's duration highlights which applies.
+
+**Time variables.** Only three are user inputs: `t` (duration since last fix —
+the requirement's duration and the error-growth x-axis), `Δ` (fix cadence
+before the outage), and `T_m` (**model timescale**: the single timescale at
+which an approximate method is pinned to equal the flicker floor). `T_m`
+defaults to the active requirement's `t`; the user changes it for sensitivity
+studies, to reproduce an inherited analysis (Bayard used 1 h), or to hold one
+set of numbers across several requirements. ADEV's averaging window τ is a
+plot axis, never an input.
 
 | Method | B enters as | Honest when |
 |---|---|---|
-| `fudge` | q₂ = B²/T_fudge (default 1 h, editable) — the `bayard_calc.m` mapping | as a bound, if T_fudge ≤ t/3; optimistic for t < 3·T_fudge by ≈√(t/3T) |
+| `fudge` | q₂ = B²/T_m — the `bayard_calc.m` mapping | as a bound if T_m ≤ t/3; optimistic for t < 3·T_m by ≈√(t/3T_m) |
 | `constant` | random-constant bias, p₂₂ = B², no process noise: σ_θ ≈ B·t | minutes to hours; slightly low at very long t (flicker log growth) |
-| `gm` | first-order Gauss-Markov, σ = B, τ_c editable (default at ADEV knee) | t < τ_c; optimistic ∝ √(t/2τ_c) beyond |
+| `gm` | first-order Gauss-Markov, σ = B, correlation time τ_c = T_m | t < T_m; optimistic ∝ √(t/2T_m) beyond |
 | `fittedK` | B ignored; K taken from the spec (or fit to the simulated ADEV's τ^{+1/2} region) | once the ADEV has turned up; still missing the floor |
 
 The error-growth view also decomposes the estimate into stacked contributions
@@ -236,9 +245,10 @@ for tests and for a future Node/notebook use.
 ```
 
 **Scenario:** `{ duration, dt, runs, seed, lastFix: {sigma, cadence, bias},
-driftKnowledge: p33 | null, temperature: profile, estimateMethods: {fudge:
-{Tfudge}, constant: {}, gm: {tauC}, fittedK: {}}, requirements: Requirement[],
-activeRequirement }`.
+driftKnowledge: p33 | null, temperature: profile, modelTimescale: Tm | 'auto',
+estimateMethods: Set<'fudge'|'constant'|'gm'|'fittedK'>, requirements:
+Requirement[], activeRequirement }`. `'auto'` means T_m follows the active
+requirement's duration.
 
 ## 5. Testing
 
@@ -248,8 +258,8 @@ activeRequirement }`.
   - ADEV/MDEV/HDEV of known series from `allantools`, compared to 1e-9.
   - Bayard σ(t) from fixed `bayard.py` for jpl_mimu + BCT fix at
     t ∈ {1, 60, 3600} s, compared to 1e-12.
-  - Estimate methods: `constant` reproduces B·t; `gm` → `constant` as τ_c→∞;
-    `fudge` equals Bayard with q₂ = B²/T_fudge. Contribution stack RSSes to
+  - Estimate methods: `constant` reproduces B·t; `gm` → `constant` as T_m→∞;
+    `fudge` equals Bayard with q₂ = B²/T_m. Contribution stack RSSes to
     the total.
   - Monte Carlo envelope for a pure-flicker spec grows ≈ B·t (within the log
     factor) — the one test that checks the truth side against theory.
