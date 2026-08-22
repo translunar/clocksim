@@ -95,7 +95,7 @@ export function simulate(spec: DeviceSpec, o: SimOptions, prng: Prng): SimResult
 }
 
 /** DMTD measurement: phase difference plus leaked offset-oscillator phase plus a white-PM floor. */
-export function comparePhase(dut: Float64Array, ref: Float64Array, osc: Float64Array, leak: number, floorQ: number, _dt: number, prng: Prng): Float64Array {
+export function comparePhase(dut: Float64Array, ref: Float64Array, osc: Float64Array, leak: number, floorQ: number, prng: Prng): Float64Array {
   const n = dut.length;
   const out = new Float64Array(n);
   for (let i = 0; i < n; i++) out[i] = dut[i]! - ref[i]! + leak * osc[i]! + (floorQ > 0 ? floorQ * prng.gaussian() : 0);

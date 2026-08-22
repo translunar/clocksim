@@ -19,7 +19,7 @@ export async function handleRequest(msg: WorkerRequest, post: (m: WorkerResponse
       const seed = new Prng(msg.seed);
       const yd = simulateRate(msg.dut, opts, seed.fork(1)), yr = simulateRate(msg.ref, opts, seed.fork(2)), yo = simulateRate(msg.osc, opts, seed.fork(3));
       const xd = frequencyToPhase(yd, msg.dt), xr = frequencyToPhase(yr, msg.dt), xo = frequencyToPhase(yo, msg.dt);
-      const xm = comparePhase(xd, xr, xo, msg.leak, msg.floorQ, msg.dt, seed.fork(4));
+      const xm = comparePhase(xd, xr, xo, msg.leak, msg.floorQ, seed.fork(4));
       const ms = logSpacedM(xd.length);
       const d = (x: Float64Array) => deviation(msg.kind, x, msg.dt, ms);
       const rd = d(xd);

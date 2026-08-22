@@ -33,7 +33,7 @@ function deviceEditor(d: BenchDevice, store: Store): HTMLElement {
       numInput('tempco', d.thermal.tempco, v => patch(x => { if (x.thermal) x.thermal.tempco = v; }), { unit: units.tempco, key: controlKey(['dev', d.id, 'tempco']) }),
       numInput('thermal lag', d.thermal.tauTh, v => patch(x => { if (x.thermal) x.thermal.tauTh = v; }), { unit: 's', min: 0, key: controlKey(['dev', d.id, 'tauth']) })) : null,
     h('div', { class: 'row' },
-      h('button', { on: { click: () => navigator.clipboard.writeText(exportDevice(d)) } }, 'Copy JSON'),
+      h('button', { on: { click: () => navigator.clipboard.writeText(exportDevice(d)).catch(() => {}) } }, 'Copy JSON'),
       h('button', { on: { click: () => store.update(s => ({ ...s, bench: s.bench.filter(x => x.id !== d.id), selected: s.selected === d.id ? (s.bench.find(x => x.id !== d.id)?.id ?? null) : s.selected })) } }, 'Remove')),
   );
 }
@@ -90,7 +90,7 @@ function scenarioPanel(s: AppState, store: Store): HTMLElement {
     h('div', { class: 'row' },
       numInput('last-fix 1σ', reqValueFromSI(domain, sc.fix.sigma), v => set(x => { x.fix.sigma = reqValueToSI(domain, v); }), { unit: eu.label, term: 'fix', min: 0, key: controlKey(['scenario', 'fixSigma']) }),
       numInput('fix cadence Δ', sc.fix.cadence, v => set(x => { x.fix.cadence = v; }), { unit: 's', min: 1e-3, key: controlKey(['scenario', 'fixCadence']) }),
-      numInput('fix bias', reqValueFromSI(domain, sc.fix.bias), v => set(x => { x.fix.bias = reqValueToSI(domain, v); }), { unit: eu.label, min: 0, key: controlKey(['scenario', 'fixBias']) })),
+      numInput('fix bias', reqValueFromSI(domain, sc.fix.bias), v => set(x => { x.fix.bias = reqValueToSI(domain, v); }), { unit: eu.label, term: 'turnOnBias', min: 0, key: controlKey(['scenario', 'fixBias']) })),
     domain === 'clock' && dev?.states === 3 ? numInput('drift-rate uncertainty', sc.driftKnowledge ? Math.sqrt(sc.driftKnowledge) * 86400 : 0, v => set(x => { x.driftKnowledge = v > 0 ? (v / 86400) ** 2 : null; }), { unit: 'Δf/f per day, 1σ', term: 'driftKnowledge', min: 0, key: controlKey(['scenario', 'driftKnowledge']) }) : null,
     select('Temperature profile', [{ value: 'none', label: 'none' }, { value: 'step', label: 'step' }, { value: 'ramp', label: 'ramp' }, { value: 'sinusoid', label: 'sinusoid (orbital)' }], profile.kind, setKind, { key: controlKey(['scenario', 'tempProfile']) }),
     ...profileFields(),

@@ -62,6 +62,7 @@ export const compareView: ViewFactory = (root, store, client) => {
     lastM = null;
     pending = client.request({ type: 'compare', id: client.nextId(), dut: benchToSpec(dut), ref: benchToSpec(ref), osc: benchToSpec(osc), leak: cmp.leak, floorQ: cmp.floorQ, dt: s.scenario.dt, n, seed: s.scenario.seed, kind: s.scenario.devKind }, m => {
       pending = null;
+      if (m.type === 'error') { readout.textContent = m.message; return; }
       if (m.type !== 'compare') return;
       lastM = m;
       chart.setSeries([

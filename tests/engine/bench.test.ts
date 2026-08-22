@@ -81,24 +81,24 @@ describe('bench', () => {
   });
 
   it('comparePhase with zero leak is independent of the offset oscillator', () => {
-    const n = 100, dt = 1, p = new Prng(9);
+    const n = 100, p = new Prng(9);
     const dut = p.fill(new Float64Array(n)), ref = p.fill(new Float64Array(n));
-    const a = comparePhase(dut, ref, p.fill(new Float64Array(n)), 0, 0, dt, new Prng(1));
-    const b = comparePhase(dut, ref, p.fill(new Float64Array(n)), 0, 0, dt, new Prng(1));
+    const a = comparePhase(dut, ref, p.fill(new Float64Array(n)), 0, 0, new Prng(1));
+    const b = comparePhase(dut, ref, p.fill(new Float64Array(n)), 0, 0, new Prng(1));
     for (let i = 0; i < n; i++) { expect(a[i]).toBe(b[i]); expect(a[i]).toBeCloseTo(dut[i]! - ref[i]!, 12); }
   });
 
   it('comparePhase applies leak times the offset-oscillator phase exactly', () => {
-    const n = 50, dt = 1, p = new Prng(11);
+    const n = 50, p = new Prng(11);
     const dut = p.fill(new Float64Array(n)), ref = p.fill(new Float64Array(n)), osc = p.fill(new Float64Array(n));
-    const out = comparePhase(dut, ref, osc, 0.5, 0, dt, new Prng(1));
+    const out = comparePhase(dut, ref, osc, 0.5, 0, new Prng(1));
     for (let i = 0; i < n; i++) expect(out[i]).toBeCloseTo(dut[i]! - ref[i]! + 0.5 * osc[i]!, 12);
   });
 
   it('comparePhase white-PM floor has std dev floorQ and zero mean', () => {
-    const n = 20000, dt = 1;
+    const n = 20000;
     const zeros = new Float64Array(n);
-    const out = comparePhase(zeros, zeros, zeros, 0, 2e-9, dt, new Prng(12));
+    const out = comparePhase(zeros, zeros, zeros, 0, 2e-9, new Prng(12));
     let mean = 0; for (const v of out) mean += v; mean /= n;
     let variance = 0; for (const v of out) variance += (v - mean) ** 2; variance /= n;
     expect(mean).toBeCloseTo(0, 10);
@@ -106,10 +106,10 @@ describe('bench', () => {
   });
 
   it('comparePhase with floorQ=0 consumes no PRNG draws', () => {
-    const n = 10, dt = 1;
+    const n = 10;
     const dut = new Float64Array(n), ref = new Float64Array(n), osc = new Float64Array(n);
     const prng = new Prng(1);
-    comparePhase(dut, ref, osc, 0, 0, dt, prng);
+    comparePhase(dut, ref, osc, 0, 0, prng);
     const fresh = new Prng(1);
     expect(prng.next()).toBe(fresh.next());
   });
