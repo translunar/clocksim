@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { initialCovariance, contributions, estimateSigma, bayardSigma, timeToRequirement, steadyStateVsCadence, crossover } from '../../src/engine/models';
+import { initialCovariance, contributions, estimateSigma, bayardSigma, timeToRequirement, steadyStateVsCadence, crossover, type EstimateOptions } from '../../src/engine/models';
 import type { DeviceSpec } from '../../src/engine/bench';
 
 const fx = JSON.parse(readFileSync(new URL('../../fixtures/bayard.json', import.meta.url), 'utf8'));
@@ -89,6 +89,18 @@ describe('estimate methods', () => {
   });
   it('rejects non-positive Tm', () => {
     expect(() => contributions(g, { ...baseOpts, method: 'constant', Tm: 0, fix: noFix }, t)).toThrow();
+  });
+
+  it('estimateSigma excludes thermal from the total, even though contributions.thermal is nonzero', () => {
+    const g2 = spec({ thermal: { tempco: 1e-6, tauTh: 0 } });
+    const o: EstimateOptions = { ...baseOpts, method: 'constant', fix: noFix, dt: 0.01, profile: { kind: 'ramp', rate: 0.01 }, includeThermal: true };
+    const withThermal = estimateSigma(g2, o, t);
+    const withoutThermal = estimateSigma(g2, { ...o, includeThermal: false }, t);
+    const c = contributions(g2, o, t);
+    for (let i = 0; i < t.length; i++) {
+      expect(c.thermal[i]).toBeGreaterThan(0);
+      expect(withThermal[i]).toBeCloseTo(withoutThermal[i]!, 12);
+    }
   });
 });
 

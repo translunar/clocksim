@@ -140,12 +140,19 @@ export function contributions(spec: DeviceSpec, o: EstimateOptions, times: Float
   return out;
 }
 
+/**
+ * RSS of every contribution except `thermal`. Thermal is deliberately excluded: per spec §3.4 and
+ * the glossary, the analytic estimate methods never see flicker or thermal — thermal is truth-only,
+ * shown in the contribution stack (and separately in the growth-view readout) so the user can see
+ * what it's carrying that the estimate isn't, but it must not silently dominate the "estimate"
+ * number the tool compares Monte Carlo truth against.
+ */
 export function estimateSigma(spec: DeviceSpec, o: EstimateOptions, times: Float64Array): Float64Array {
   const c = contributions(spec, o, times);
   const out = new Float64Array(times.length);
   for (let i = 0; i < out.length; i++) {
     let s = 0;
-    for (const k of Object.keys(c) as ContributionKey[]) s += c[k][i]! ** 2;
+    for (const k of Object.keys(c) as ContributionKey[]) { if (k === 'thermal') continue; s += c[k][i]! ** 2; }
     out[i] = Math.sqrt(s);
   }
   return out;

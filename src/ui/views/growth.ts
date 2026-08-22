@@ -4,7 +4,7 @@ import { LogLogChart, PALETTE, fmtSci, fmtTime } from '../charts';
 import { benchToSpec, effectiveTm, type AppState } from '../state';
 import { ERROR_UNIT } from '../../engine/units';
 import type { ContributionKey } from '../../engine/models';
-import { computeEstimates, growthTimes, mcSummary } from './growthCompute';
+import { computeEstimates, growthTimes, mcSummary, valueAt } from './growthCompute';
 import type { ViewFactory } from './types';
 
 const CONTRIB: ContributionKey[] = ['initial', 'Q', 'N', 'B', 'K', 'D', 'R', 'thermal'];
@@ -40,13 +40,15 @@ export const growthView: ViewFactory = (root, store, client) => {
       main.setData(times, [...est.map(c => conv(c.scaled)), mcS ? conv(mcS.curve) : null]);
       main.clearLines();
       if (req) { main.addHLine(eu.fromSI(req.value), `requirement ${eu.fromSI(req.value)} ${eu.label} (${k}σ)`); main.addVLine(req.duration, fmtTime(req.duration)); }
+      const first = est[0];
+      const thermalAtReq = first && req ? valueAt(times, first.contributions.thermal, req.duration) : null;
       readout.replaceChildren(
         ...est.map(c => h('div', {}, h('span', {}, dfn(c.method), ` at ${req ? fmtTime(req.duration) : '—'}`), h('b', {}, c.atReq === null ? '—' : `${fmtSci(eu.fromSI(c.atReq))} ${eu.label}`), `time to requirement: ${c.timeToReq === null ? 'never within span' : fmtTime(c.timeToReq)}`)),
         h('div', {}, h('span', {}, 'Monte Carlo truth'), h('b', {}, mcS?.atReq == null ? '…' : `${fmtSci(eu.fromSI(mcS.atReq))} ${eu.label}`), `time to requirement: ${mcS?.timeToReq == null ? (mc ? 'never within span' : '…') : fmtTime(mcS.timeToReq)}`),
         ...(mcS?.atReq != null ? est.map(c => h('div', { class: c.atReq && mcS.atReq! / c.atReq > 1.2 ? 'warn' : '' }, h('span', {}, `truth / ${c.method}`), h('b', {}, c.atReq ? (mcS.atReq! / c.atReq).toFixed(2) + '×' : '—'), c.atReq && mcS.atReq! / c.atReq > 1.2 ? 'estimate is optimistic at this duration' : 'estimate is adequate or conservative here')) : []),
         h('div', {}, h('span', {}, 'T_m in use'), h('b', {}, fmtTime(effectiveTm(s.scenario)))),
+        h('div', {}, h('span', {}, dfn('thermal', 'thermal (truth only)')), h('b', {}, thermalAtReq == null ? '—' : `${fmtSci(eu.fromSI(thermalAtReq))} ${eu.label}`), 'not included in the analytic estimate above; carried only by the Monte Carlo truth'),
       );
-      const first = est[0];
       if (first) {
         const keys = CONTRIB.filter(key => first.contributions[key].some(v => v > 0));
         stack.setSeries(keys.map((key, i) => ({ label: key === 'B' ? `B (${first.method})` : key, color: PALETTE[i % 8]! })));
