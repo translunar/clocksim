@@ -1,7 +1,7 @@
 import uPlot from 'uplot';
 import 'uplot/dist/uPlot.min.css';
-import { fmtSci } from './format';
-export { PALETTE, fmtSci, fmtTime } from './format';
+import { fmtSci, alignSeries } from './format';
+export { PALETTE, fmtSci, fmtTime, alignSeries } from './format';
 
 export interface SeriesDef { label: string; color: string; dash?: number[]; width?: number; band?: boolean }
 
@@ -39,12 +39,19 @@ export class LogLogChart {
 
   setData(x: Float64Array, ys: (Float64Array | null)[]): void {
     const clean = (a: Float64Array | null) => a ? Array.from(a, v => (v > 0 && Number.isFinite(v) ? v : null)) : Array.from(x, () => null);
-    this.data = [Array.from(x), ...ys.map(clean)] as uPlot.AlignedData;
+    const xs = Array.from(x);
+    this.data = [xs, ...alignSeries(xs, ys.map(clean), this.defs.length)] as uPlot.AlignedData;
     if (this.plot) this.plot.setData(this.data); else this.rebuild();
   }
 
   private rebuild(): void {
     this.plot?.destroy();
+    // Defensive: setSeries/setBands can change `defs.length` without a following setData call
+    // (e.g. before the first setData, or if a caller reorders calls), so re-align here too —
+    // this is the same guard as setData, applied to whatever data is currently held.
+    const xs = (this.data[0] ?? []) as number[];
+    const ys = this.data.slice(1) as (number | null)[][];
+    this.data = [xs, ...alignSeries(xs, ys, this.defs.length)] as uPlot.AlignedData;
     const self = this;
     const o: uPlot.Options = {
       ...this.size(), title: this.opts.title,

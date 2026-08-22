@@ -9,6 +9,19 @@ export function fmtSci(v: number): string {
   return `${ms}e${e >= 0 ? '+' : ''}${e}`;
 }
 
+/**
+ * Pad or truncate a list of y-series to exactly `count` arrays so a chart's data always matches
+ * its series definitions. Missing series are filled with an array of `null` the length of `x`
+ * (uPlot renders `null` as a gap); extra series are dropped. Existing arrays are passed through
+ * unchanged. Without this, handing uPlot fewer y-arrays than configured series throws inside
+ * uPlot's internals (accScale reads `data[i].length` for every series).
+ */
+export function alignSeries(x: number[], ys: (number | null)[][], count: number): (number | null)[][] {
+  const out = ys.slice(0, count);
+  while (out.length < count) out.push(x.map(() => null));
+  return out;
+}
+
 export function fmtTime(s: number): string {
   const base = s < 1000 ? `${Number(s.toPrecision(3))} s` : `${fmtSci(s)} s`;
   if (s >= 86400) return `${base} (${Number((s / 86400).toPrecision(3))} d)`;

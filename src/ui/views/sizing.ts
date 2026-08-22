@@ -13,7 +13,7 @@ export const sizingView: ViewFactory = (root, store) => {
   const update = (s: AppState) => {
     const sel = s.bench.find(d => d.id === s.selected);
     if (!sel) return;
-    if (sel.domain === 'accel') { readout.textContent = 'Steady-state sizing is defined for 2-state devices (gyro, clock) in v1.'; chart.setData(cadenceGrid(), []); return; }
+    if (sel.domain === 'accel') { readout.textContent = 'Steady-state sizing is defined for 2-state devices (gyro, clock) in v1.'; chart.setSeries([]); chart.setData(cadenceGrid(), []); return; }
     const eu = ERROR_UNIT[sel.domain];
     const req = s.scenario.requirements.find(r => r.id === s.scenario.activeRequirement) ?? null;
     const curves = computeKnee(s.bench.filter(d => d.domain === sel.domain), s.scenario, req);

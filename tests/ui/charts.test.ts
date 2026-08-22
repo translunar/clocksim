@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmtSci, fmtTime, PALETTE } from '../../src/ui/format';
+import { fmtSci, fmtTime, PALETTE, alignSeries } from '../../src/ui/format';
 
 describe('chart helpers', () => {
   it('fmtSci handles null/NaN/Infinity (uPlot passes null for unlabeled ticks)', () => {
@@ -10,4 +10,24 @@ describe('chart helpers', () => {
     expect(fmtTime(30)).toBe('30 s'); expect(fmtTime(600)).toBe('600 s (10 min)'); expect(fmtTime(7200)).toBe('7.2e+3 s (2 h)'); expect(fmtTime(172800)).toBe('1.73e+5 s (2 d)');
   });
   it('palette has 8 unique colours', () => { expect(new Set(PALETTE).size).toBe(8); });
+});
+
+describe('alignSeries', () => {
+  const x = [1, 2, 3];
+  it('leaves an exact match alone', () => {
+    const ys = [[1, 2, 3], [null, 2, null]];
+    expect(alignSeries(x, ys, 2)).toEqual(ys);
+  });
+  it('pads missing series with null arrays of the x length', () => {
+    const ys = [[1, 2, 3]];
+    expect(alignSeries(x, ys, 3)).toEqual([[1, 2, 3], [null, null, null], [null, null, null]]);
+  });
+  it('truncates extra series', () => {
+    const ys = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    expect(alignSeries(x, ys, 1)).toEqual([[1, 2, 3]]);
+  });
+  it('handles count 0 (no series)', () => {
+    expect(alignSeries(x, [[1, 2, 3]], 0)).toEqual([]);
+    expect(alignSeries(x, [], 0)).toEqual([]);
+  });
 });
