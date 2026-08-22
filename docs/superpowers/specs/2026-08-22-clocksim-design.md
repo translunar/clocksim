@@ -102,7 +102,9 @@ Port of the Bayard 2-state gyro model from the fixed `bayard.py`
   `p₂₂ = √q₂·l`.
 - `p(t) = q₂/3·t³ + p₂₂·t² + (2p₁₂ + q₁)·t + p₁₁ + b²` (2-state); 3-state
   adds the q₃ and third-row terms per Bayard's accelerometer formulation.
-- Inputs are N, K, R and b (fix bias). **When a spec has B but no K, the model
+- Inputs are N, K (plus q₃ for 3-state) and b (fix bias). R (deterministic
+  drift) is not a model input: in the 3-state model drift is an estimated
+  state with uncertainty p₃₃; in the 2-state model it is simply unmodeled. **When a spec has B but no K, the model
   applies the bayard_calc.m fudge** `K_eff = B/√T_fudge`, `T_fudge = 1 h`
   (editable), and the legend says so. When K is present, it is used directly.
   The model never sees flicker or thermal terms — by design.
