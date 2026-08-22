@@ -25,7 +25,8 @@ export function logSpacedM(nPhase: number, perDecade = 8, maxFrac = 0.1): number
 /** Howe–Allan–Barnes white-FM approximation of equivalent degrees of freedom for overlapping estimators. */
 export function edfApprox(nPhase: number, m: number): number {
   const N = nPhase;
-  const e = (3 * (N - 1) / (2 * m) - 2 * (N - 2) / N) * (4 * m * m) / (4 * m * m + 5);
+  const mm = Math.max(1, m);
+  const e = (3 * (N - 1) / (2 * mm) - 2 * (N - 2) / N) * (4 * mm * mm) / (4 * mm * mm + 5);
   return Math.max(1, e);
 }
 
@@ -49,22 +50,24 @@ function withBounds(tau: Float64Array, dev: Float64Array, count: Int32Array, nPh
 /** Overlapping Allan deviation on phase data x (seconds or radians), sample interval dt. */
 export function oadev(x: Float64Array, dt: number, ms: number[]): DevResult {
   const N = x.length;
-  const tau = new Float64Array(ms.length), dev = new Float64Array(ms.length), count = new Int32Array(ms.length);
-  ms.forEach((m, i) => {
+  const valid = ms.filter(m => N - 2 * m >= 1);
+  const tau = new Float64Array(valid.length), dev = new Float64Array(valid.length), count = new Int32Array(valid.length);
+  valid.forEach((m, i) => {
     const n = N - 2 * m;
     let s = 0;
     for (let j = 0; j < n; j++) { const d = x[j + 2 * m]! - 2 * x[j + m]! + x[j]!; s += d * d; }
     const t = m * dt;
     tau[i] = t; count[i] = n; dev[i] = Math.sqrt(s / (2 * n * t * t));
   });
-  return withBounds(tau, dev, count, N, ms);
+  return withBounds(tau, dev, count, N, valid);
 }
 
 /** Modified Allan deviation on phase data. */
 export function mdev(x: Float64Array, dt: number, ms: number[]): DevResult {
   const N = x.length;
-  const tau = new Float64Array(ms.length), dev = new Float64Array(ms.length), count = new Int32Array(ms.length);
-  ms.forEach((m, i) => {
+  const valid = ms.filter(m => N - 3 * m + 1 >= 1);
+  const tau = new Float64Array(valid.length), dev = new Float64Array(valid.length), count = new Int32Array(valid.length);
+  valid.forEach((m, i) => {
     const n = N - 3 * m + 1;
     // running sum of second differences over a window of m
     let v = 0;
@@ -77,21 +80,22 @@ export function mdev(x: Float64Array, dt: number, ms: number[]): DevResult {
     const t = m * dt;
     tau[i] = t; count[i] = n; dev[i] = Math.sqrt(s / (2 * m * m * t * t * n));
   });
-  return withBounds(tau, dev, count, N, ms);
+  return withBounds(tau, dev, count, N, valid);
 }
 
 /** Overlapping Hadamard deviation on phase data. */
 export function ohdev(x: Float64Array, dt: number, ms: number[]): DevResult {
   const N = x.length;
-  const tau = new Float64Array(ms.length), dev = new Float64Array(ms.length), count = new Int32Array(ms.length);
-  ms.forEach((m, i) => {
+  const valid = ms.filter(m => N - 3 * m >= 1);
+  const tau = new Float64Array(valid.length), dev = new Float64Array(valid.length), count = new Int32Array(valid.length);
+  valid.forEach((m, i) => {
     const n = N - 3 * m;
     let s = 0;
     for (let j = 0; j < n; j++) { const d = x[j + 3 * m]! - 3 * x[j + 2 * m]! + 3 * x[j + m]! - x[j]!; s += d * d; }
     const t = m * dt;
     tau[i] = t; count[i] = n; dev[i] = Math.sqrt(s / (6 * n * t * t));
   });
-  return withBounds(tau, dev, count, N, ms);
+  return withBounds(tau, dev, count, N, valid);
 }
 
 export function deviation(kind: DevKind, x: Float64Array, dt: number, ms: number[]): DevResult {

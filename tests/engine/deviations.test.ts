@@ -30,6 +30,35 @@ describe('deviations vs allantools', () => {
   }
 });
 
+describe('infeasible m guarding', () => {
+  const x = Float64Array.from(fx.x); // length 4097
+  const ms = [1, 1000, 1400, 2000, 5000];
+  // N=4097: oadev needs N-2m>=1 -> m<=2048; mdev needs N-3m+1>=1 -> m<=1365;
+  // ohdev needs N-3m>=1 -> m<=1365. So of [1,1000,1400,2000,5000]:
+  // oadev keeps 1,1000,1400,2000 (4); mdev/ohdev keep 1,1000 (2).
+
+  it('oadev drops m beyond N-2m>=1', () => {
+    const r = oadev(x, fx.dt, ms);
+    expect(r.tau.length).toBe(4);
+    expect(Array.from(r.tau)).toEqual([1, 1000, 1400, 2000].map(m => m * fx.dt));
+    for (const v of r.dev) expect(Number.isFinite(v)).toBe(true);
+  });
+
+  it('mdev drops m beyond N-3m+1>=1', () => {
+    const r = mdev(x, fx.dt, ms);
+    expect(r.tau.length).toBe(2);
+    expect(Array.from(r.tau)).toEqual([1, 1000].map(m => m * fx.dt));
+    for (const v of r.dev) expect(Number.isFinite(v)).toBe(true);
+  });
+
+  it('ohdev drops m beyond N-3m>=1', () => {
+    const r = ohdev(x, fx.dt, ms);
+    expect(r.tau.length).toBe(2);
+    expect(Array.from(r.tau)).toEqual([1, 1000].map(m => m * fx.dt));
+    for (const v of r.dev) expect(Number.isFinite(v)).toBe(true);
+  });
+});
+
 describe('logSpacedM', () => {
   it('is increasing, unique, and bounded by maxFrac of the series', () => {
     const ms = logSpacedM(10001, 8, 0.1);
