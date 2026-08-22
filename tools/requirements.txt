@@ -1,0 +1,2 @@
+numpy
+allantools==2024.06
