@@ -36,18 +36,27 @@ export const adevView: ViewFactory = (root, store, client) => {
       const reliable = Float64Array.from(m.dev, (v, i) => (m.tau[i]! <= cutoff ? v : NaN));
       const faded = Float64Array.from(m.dev, (v, i) => (m.tau[i]! > cutoff ? v : NaN));
       const active = TERM_KEYS.filter(k => spec.coefs[k] > 0);
+      // The analytic asymptotes (and their RSS total) are ADEV-specific: MDEV/HDEV have different
+      // slopes for the same noise types (I4), and D has no attainable ADEV asymptote at all — the
+      // Allan variance diverges for it (I7) — so it's excluded from the overlay even under ADEV.
+      const isAdev = s.scenario.devKind === 'adev';
+      const overlay = isAdev ? active.filter(k => k !== 'D') : [];
       chart.setSeries([
         { label: `${s.scenario.devKind.toUpperCase()} (simulated)`, color: PALETTE[0]!, width: 2.5 },
         { label: 'unreliable (τ > record/10)', color: PALETTE[7]!, width: 1 },
         { label: '68% band lo', color: PALETTE[0]!, width: 0.5, band: true },
         { label: '68% band hi', color: PALETTE[0]!, width: 0.5, band: true },
-        { label: 'analytic total', color: '#000', dash: [2, 3] },
-        ...active.map((k, i) => ({ label: `${k} asymptote`, color: PALETTE[(i + 1) % 8]!, dash: [8, 4], width: 1 })),
+        ...(isAdev ? [{ label: 'analytic total', color: '#000', dash: [2, 3] }] : []),
+        ...overlay.map((k, i) => ({ label: `${k} asymptote`, color: PALETTE[(i + 1) % 8]!, dash: [8, 4], width: 1 })),
       ]);
       chart.setBands([[3, 4]]);
-      chart.setData(m.tau, [reliable, faded, m.lo, m.hi, m.analyticTotal, ...active.map(k => m.analytic[k])]);
-      info.replaceChildren(h('table', {}, h('tr', {}, h('th', {}, 'coef'), h('th', {}, 'datasheet'), h('th', {}, 'SI'), h('th', {}, 'ADEV slope')),
-        ...active.map(k => h('tr', {}, h('td', {}, dfn(k)), h('td', {}, `${d.coefs[k]} ${units[k]}`), h('td', {}, fmtSci(spec.coefs[k])), h('td', {}, { Q: 'τ⁻¹', F: 'τ⁻¹', N: 'τ⁻¹ᐟ²', B: 'τ⁰', K: 'τ⁺¹ᐟ²', D: 'τ⁺³ᐟ²', R: 'τ⁺¹' }[k])))));
+      chart.setData(m.tau, [reliable, faded, m.lo, m.hi, ...(isAdev ? [m.analyticTotal] : []), ...overlay.map(k => m.analytic[k])]);
+      const slope: Record<keyof Coefs, string> = { Q: 'τ⁻¹', F: 'τ⁻¹', N: 'τ⁻¹ᐟ²', B: 'τ⁰', K: 'τ⁺¹ᐟ²', D: 'no asymptote (diverges)', R: 'τ⁺¹' };
+      info.replaceChildren(
+        h('table', {}, h('tr', {}, h('th', {}, 'coef'), h('th', {}, 'datasheet'), h('th', {}, 'SI'), ...(isAdev ? [h('th', {}, 'ADEV slope')] : [])),
+          ...active.map(k => h('tr', {}, h('td', {}, dfn(k)), h('td', {}, `${d.coefs[k]} ${units[k]}`), h('td', {}, fmtSci(spec.coefs[k])), ...(isAdev ? [h('td', {}, slope[k])] : [])))),
+        ...(isAdev ? [] : [h('p', {}, 'Analytic asymptotes are shown for ADEV only; MDEV/HDEV have different slopes (see glossary).')]),
+      );
     });
   };
   update(store.get());

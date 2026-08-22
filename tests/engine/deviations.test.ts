@@ -77,7 +77,13 @@ describe('analyticAdev', () => {
     expect(Array.from(analyticAdev({ ...z, K: 3 }, taus))).toEqual(taus.map(t => 3 * Math.sqrt(t / 3)));
     expect(Array.from(analyticAdev({ ...z, R: 1 }, taus))).toEqual(taus.map(t => t / Math.SQRT2));
     expect(Array.from(analyticAdev({ ...z, Q: 1 }, taus))).toEqual(taus.map(t => Math.sqrt(3) / t));
-    expect(Array.from(analyticAdev({ ...z, D: 1 }, taus))).toEqual(taus.map(t => Math.sqrt(23 / 60 * t ** 3)));
+  });
+  it('excludes D from the total (Allan variance does not converge for this noise type; no attainable ADEV asymptote), but still exposes the naive per-term formula', () => {
+    const taus = [1, 10, 100];
+    const z = { Q: 0, F: 0, N: 0, B: 0, K: 0, D: 0, R: 0 };
+    expect(Array.from(analyticAdev({ ...z, D: 1 }, taus))).toEqual(taus.map(() => 0));
+    const terms = analyticAdevTerms({ ...z, D: 1 }, taus);
+    expect(Array.from(terms.D)).toEqual(taus.map(t => Math.sqrt(23 / 60 * t ** 3)));
   });
   it('sums in quadrature and exposes terms', () => {
     const c = { Q: 0, F: 0, N: 1, B: 0, K: 1, D: 0, R: 0 };

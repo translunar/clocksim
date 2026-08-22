@@ -113,6 +113,10 @@ export function analyticAdevTerms(c: Coefs, taus: ArrayLike<number>): Record<key
     r.N[i] = c.N / Math.sqrt(t);
     r.B[i] = FLICKER_FLOOR * c.B;
     r.K[i] = c.K * Math.sqrt(t / 3);
+    // Naive single-window-pair value only. The Allan variance diverges for alpha=-4 (random walk
+    // of the drift), so a D-only device's ADEV is record-length dependent and has no fixed slope
+    // or attainable asymptote — this term is kept here (so callers that want the raw formula can
+    // still get it) but is excluded from analyticAdev's total below and from the UI overlay.
     r.D[i] = c.D * Math.sqrt(23 / 60 * t * t * t);
     r.R[i] = c.R * t / Math.SQRT2;
   }
@@ -124,7 +128,7 @@ export function analyticAdev(c: Coefs, taus: ArrayLike<number>): Float64Array {
   const out = new Float64Array(taus.length);
   for (let i = 0; i < out.length; i++) {
     let s = 0;
-    for (const k of Object.keys(terms) as (keyof Coefs)[]) s += terms[k][i]! ** 2;
+    for (const k of Object.keys(terms) as (keyof Coefs)[]) { if (k === 'D') continue; s += terms[k][i]! ** 2; }
     out[i] = Math.sqrt(s);
   }
   return out;
