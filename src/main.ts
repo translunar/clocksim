@@ -1,2 +1,3 @@
+import { mountApp } from './ui/app';
 const el = document.getElementById('app');
-if (el) el.textContent = 'clocksim';
+if (el) mountApp(el);
