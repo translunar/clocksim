@@ -46,8 +46,11 @@ function thermalRate(spec: DeviceSpec, o: SimOptions): Float64Array | null {
  * Rate-like series y: sum of all noise terms + drift + thermal + constant bias offset.
  * For accel, initial[2] is the accelerometer bias; for clock 3-state, initial[2] is the initial drift
  * (added to R); for gyro/2-state clock, initial[1] is the constant bias / frequency offset.
+ *
+ * Computes the thermal-rate contribution once and returns it alongside y so `simulate()` doesn't
+ * have to call `deviceTemperature` a second time to populate `SimResult.thermalRate`.
  */
-export function simulateRate(spec: DeviceSpec, o: SimOptions, prng: Prng): Float64Array {
+function simulateRateWithThermal(spec: DeviceSpec, o: SimOptions, prng: Prng): { y: Float64Array; thermalRate: Float64Array | null } {
   const { n, dt } = o;
   const c = spec.coefs;
   const qd = qdFor(c, dt);
@@ -65,7 +68,11 @@ export function simulateRate(spec: DeviceSpec, o: SimOptions, prng: Prng): Float
   for (let i = 0; i < n; i++) y[i] = y[i]! + biasOffset + (c.R + drift0) * i * dt;
   const th = thermalRate(spec, o);
   if (th) add(th);
-  return y;
+  return { y, thermalRate: th };
+}
+
+export function simulateRate(spec: DeviceSpec, o: SimOptions, prng: Prng): Float64Array {
+  return simulateRateWithThermal(spec, o, prng).y;
 }
 
 function integrate(y: Float64Array, dt: number, x0: number): Float64Array {
@@ -76,8 +83,7 @@ function integrate(y: Float64Array, dt: number, x0: number): Float64Array {
 }
 
 export function simulate(spec: DeviceSpec, o: SimOptions, prng: Prng): SimResult {
-  const y = simulateRate(spec, o, prng);
-  const th = thermalRate(spec, o);
+  const { y, thermalRate: th } = simulateRateWithThermal(spec, o, prng);
   let error: Float64Array;
   if (errorLevel(spec.domain) === 1) {
     error = integrate(y, o.dt, o.initial[0] ?? 0);
