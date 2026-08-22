@@ -182,9 +182,10 @@ are drawn faded; no relativity, scale factor, misalignment, or measurement
 updates.
 
 ### 3.9 Analytic sizing views (closed-loop, no simulation)
-- **Steady-state knee (gyro/accel):** `√p₁₁` vs fix cadence Δ for each bench
-  device, with the requirement line. Shows where error becomes fix-limited and
-  a better device buys nothing, and conversely the slowest cadence each device
+- **Steady-state knee (gyro/clock; accelerometers are a v1 limitation — no
+  3-state steady state):** `√p₁₁` vs fix cadence Δ for each bench device, with
+  the requirement line. Shows where error becomes fix-limited and a better
+  device buys nothing, and conversely the slowest cadence each device
   tolerates.
 - **ADEV crossover / holdover (clock):** in Compare, when a device is marked
   "reference," mark the τ where the DUT's ADEV crosses the reference's (the

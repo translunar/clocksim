@@ -27,7 +27,10 @@ function kEffFor(spec: DeviceSpec, method: EstimateMethod, Tm: number): number {
 /**
  * Bayard steady-state post-fix covariance for level-1 devices (gyro, clock): r = Δ σ_fix²,
  * l = √(q1 + 2√(r q2)), p11 = √r l, p12 = √(r q2), p22 = √q2 l, with q1 = N², q2 = kEff².
- * For accel the fix is taken as independent position / velocity / accel-bias sigmas (zero cross terms).
+ * For accel this is a v1 limitation, not a full 3-state steady state: only p11 = σ_fix² is set
+ * (the position-fix variance), with no velocity or accel-bias uncertainty terms and no dependence
+ * on fix cadence, driftKnowledge, or device noise — which is why steadyStateVsCadence returns a
+ * constant for accel and the Sizing view excludes the accel domain entirely (see spec §3.9).
  */
 export function initialCovariance(spec: DeviceSpec, fix: FixQuality, driftKnowledge: number | null, kEff: number): InitialCov {
   const q1 = spec.coefs.N ** 2, q2 = kEff ** 2;
