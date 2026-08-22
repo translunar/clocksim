@@ -22,6 +22,25 @@ def deviations():
         out[name] = {"tau": t.tolist(), "dev": d.tolist(), "n": [int(v) for v in nn]}
     (OUT / "deviations.json").write_text(json.dumps(out))
 
+def bayard():
+    """Direct transcription of translunar/bayard references/bayard_calc.m for jpl_mimu + BCT tracker."""
+    d2r = np.pi / 180; as2d = 1 / 3600
+    random_walk = 0.025 / 3 * (1 / 60) * d2r          # rad/sqrt(s)
+    bias_stability = 0.05 / 3 * as2d * d2r             # rad/s
+    q1 = random_walk ** 2
+    q2 = bias_stability ** 2 / 3600                    # the 1-hour fudge
+    nea = 333e-6; delta = 0.2; b = 60 * as2d * d2r
+    r = delta * nea ** 2
+    l = np.sqrt(q1 + 2 * np.sqrt(r * q2))
+    p11 = np.sqrt(r) * l; p12 = np.sqrt(r * q2); p22 = np.sqrt(q2) * l
+    ts = [1.0, 60.0, 600.0, 3600.0, 36000.0]
+    p = [q2 / 3 * t ** 3 + p22 * t ** 2 + (2 * p12 + q1) * t + p11 + b ** 2 for t in ts]
+    (OUT / "bayard.json").write_text(json.dumps({
+        "N": random_walk, "B": bias_stability, "Tfudge": 3600.0, "nea": nea, "delta": delta, "b": b,
+        "p11": p11, "p12": p12, "p22": p22, "t": ts, "sigma": [float(np.sqrt(v)) for v in p]}))
+
+
 if __name__ == "__main__":
     deviations()
+    bayard()
     print("wrote", OUT)
