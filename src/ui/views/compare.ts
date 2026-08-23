@@ -105,7 +105,9 @@ export const compareView: ViewFactory = (root, store, client) => {
         { label: `Clock A: ${dut.name}`, color: PALETTE[0]! }, { label: `Clock B: ${ref.name}`, color: PALETTE[1]! },
         { label: `Offset oscillator: ${osc.name}`, color: PALETTE[7]!, width: 1 },
         { label: 'measured difference (A ⊕ B)', color: PALETTE[2]!, width: 3 },
-        { label: 'unreliable (τ > record/10)', color: PALETTE[7]!, width: 1 },
+        // Same colour as the measured curve, thinner: the faded tail is the *same* series past the
+        // cutoff, so it must not read as another device (PALETTE[7] is the offset oscillator).
+        { label: 'unreliable (τ > record/10)', color: PALETTE[2]!, width: 1 },
         { label: 'measured 68% band lo', color: PALETTE[2]!, width: 0.5, band: true },
         { label: 'measured 68% band hi', color: PALETTE[2]!, width: 0.5, band: true },
       ]);

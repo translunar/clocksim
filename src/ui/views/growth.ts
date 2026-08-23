@@ -46,9 +46,12 @@ export const growthView: ViewFactory = (root, store, client) => {
    * toggled mid-run stays toggled) without rebuilding any controls, which is what would steal focus
    * from a control the user is editing during a run.
    *
-   * `keepZoom` is set on every redraw of an unchanged scenario (the Monte Carlo progress ticks and
-   * the key-unchanged re-render). uPlot's setData re-autoscales by default, which threw away the
-   * user's drag-zoom on every batch — several times a second on a long clock run.
+   * `keepZoom` marks a redraw of an unchanged scenario (the Monte Carlo progress ticks and the
+   * key-unchanged re-render), where re-autoscaling would throw away a drag-zoom the user applied
+   * mid-run. It only *permits* skipping autoscale — the chart still has to report an actual zoom
+   * via hasUserZoom(). Skipping it unconditionally froze the y-scale at the formula-only range of
+   * the first (mc = null) draw, clipping any envelope that grew above the formulas for the whole
+   * run; with no zoom in force every batch rescales normally.
    */
   const renderAll = (s: AppState, mc: Mc | null, keepZoom = false): void => {
     const d = s.bench.find(x => x.id === s.selected);
@@ -77,7 +80,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       { label: `${PCT_LABEL[(req?.sigma ?? 1) as 1 | 2 | 3]} %ile of ${sc.runs} runs`, color: PALETTE[0]!, width: 3, band: true },
     ]);
     main.setBands([[est.length + 1, est.length + 2]]);
-    main.setData(mc ? mc.times : times, [...est.map(c => conv(c.scaled)), medianCurve ? conv(medianCurve) : null, mcS ? conv(mcS.curve) : null], { resetScales: !keepZoom });
+    main.setData(mc ? mc.times : times, [...est.map(c => conv(c.scaled)), medianCurve ? conv(medianCurve) : null, mcS ? conv(mcS.curve) : null], { resetScales: !(keepZoom && main.hasUserZoom()) });
     main.setGhosts(mc ? mc.times : times, mc ? mc.sample.map(conv) : [], GHOST_COLOR);
     main.clearLines();
     if (req) { main.addHLine(eu.fromSI(req.value), `requirement ${fmtSci(eu.fromSI(req.value))} ${eu.label} (${k}σ)`); main.addVLine(req.duration, fmtTime(req.duration)); }

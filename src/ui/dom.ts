@@ -25,8 +25,16 @@ export function controlKey(parts: string[]): string {
     .join(':');
 }
 
+/**
+ * Trims binary-float dust from a displayed value. Inputs that round-trip through a unit
+ * conversion (SI ↔ ns/deg) land on values like 3.0000000000000004, which is alarming in a box the
+ * user just typed 3 into. 12 significant digits is far more than any field here carries and well
+ * inside a double's 15–17, so this only ever removes noise.
+ */
+const showNum = (v: number) => (Number.isFinite(v) ? String(Number(v.toPrecision(12))) : String(v));
+
 export function numInput(label: string, value: number, onChange: (v: number) => void, opts: { step?: number; min?: number; term?: string; unit?: string; key?: string } = {}): HTMLElement {
-  const input = h('input', { type: 'number', value: String(value), step: opts.step ?? 'any', min: opts.min, 'data-key': opts.key, on: { change: e => { const v = Number((e.target as HTMLInputElement).value); if (Number.isFinite(v)) onChange(v); } } });
+  const input = h('input', { type: 'number', value: showNum(value), step: opts.step ?? 'any', min: opts.min, 'data-key': opts.key, on: { change: e => { const v = Number((e.target as HTMLInputElement).value); if (Number.isFinite(v)) onChange(v); } } });
   return h('label', {}, opts.term ? dfn(opts.term, label) : label, opts.unit ? ` [${opts.unit}]` : '', input);
 }
 

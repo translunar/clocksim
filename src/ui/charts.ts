@@ -13,6 +13,14 @@ export class LogLogChart {
   private bands: [number, number][] = [];
   private ghosts: { x: Float64Array; ys: Float64Array[]; color: string } | null = null;
   private ro: ResizeObserver;
+  /**
+   * True only while a drag-zoom the *user* performed is in force. Set by uPlot's setSelect hook,
+   * cleared by uPlot's dblclick unzoom, by any autoscaling setData, and by a rebuild (which
+   * replaces the plot and its scales outright). Callers use it to decide whether skipping
+   * autoscale is preserving the user's view or just freezing a stale one.
+   */
+  private userZoomed = false;
+  hasUserZoom(): boolean { return this.userZoomed; }
 
   constructor(private el: HTMLElement, private opts: { xLabel: string; yLabel: string; title?: string }) {
     this.ro = new ResizeObserver(() => this.plot?.setSize(this.size()));
@@ -55,18 +63,22 @@ export class LogLogChart {
 
   /**
    * `resetScales` defaults to uPlot's own default (true): a new scenario should re-autoscale.
-   * Pass false for a repeated draw of the *same* scenario — the Monte Carlo progress ticks —
-   * because re-autoscaling silently throws away any drag-zoom the user applied mid-run.
+   * Pass false ONLY while a real user zoom is in force (see `hasUserZoom`) — uPlot's setData
+   * skips autoscaling entirely when it is false, so passing it unconditionally would pin the
+   * view to whatever the first draw happened to cover and clip everything that grows past it.
    */
   setData(x: Float64Array, ys: (Float64Array | null)[], opts: { resetScales?: boolean } = {}): void {
     const clean = (a: Float64Array | null) => a ? Array.from(a, v => (v > 0 && Number.isFinite(v) ? v : null)) : Array.from(x, () => null);
     const xs = Array.from(x);
+    const reset = opts.resetScales ?? true;
+    if (reset) this.userZoomed = false; // autoscaling supersedes any zoom uPlot was holding
     this.data = [xs, ...alignSeries(xs, ys.map(clean), this.defs.length)] as uPlot.AlignedData;
-    if (this.plot) this.plot.setData(this.data, opts.resetScales ?? true); else this.rebuild();
+    if (this.plot) this.plot.setData(this.data, reset); else this.rebuild();
   }
 
   private rebuild(): void {
     this.plot?.destroy();
+    this.userZoomed = false; // the new plot starts at autoscale; whatever the user had is gone
     // Defensive: setSeries/setBands can change `defs.length` without a following setData call
     // (e.g. before the first setData, or if a caller reorders calls), so re-align here too —
     // this is the same guard as setData, applied to whatever data is currently held.
@@ -85,6 +97,9 @@ export class LogLogChart {
       bands: this.bands.map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
       legend: { live: true },
       hooks: {
+        // A drag-select with width is uPlot's zoom gesture. Its own dblclick handler undoes it,
+        // and it fires setSelect again with width 0 on the way out.
+        setSelect: [u => { self.userZoomed = u.select.width > 0; }],
         // drawAxes fires after the axes/grid and *before* drawSeries, so the ghost trajectories land
         // underneath the band fill, the median and the envelope (§9.7: spaghetti behind the band).
         // The `draw` hook below runs after the series, which is where the annotation lines belong.
@@ -119,5 +134,8 @@ export class LogLogChart {
       },
     };
     this.plot = new uPlot(o, this.data, this.el);
+    // uPlot's unzoom gesture. setSelect alone does not cover it: dblclick restores the full
+    // scales without necessarily emitting a zero-width select first.
+    this.plot.over.addEventListener('dblclick', () => { this.userZoomed = false; });
   }
 }
