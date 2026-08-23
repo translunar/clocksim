@@ -31,6 +31,9 @@ export const adevView: ViewFactory = (root, store, client) => {
     const d = s.bench.find(x => x.id === s.selected);
     if (!d) { info.textContent = 'No device selected.'; return; }
     const ds = s.scenario.byDomain[d.domain];
+    // Rebuilding these rows destroys the element being edited; capture the focused control by its
+    // stable data-key and restore it afterwards (same pattern as growth.ts / sidebar.ts).
+    const activeKey = document.activeElement?.getAttribute('data-key') ?? null;
     controls.replaceChildren(
       segmented([{ value: 'adev', label: 'ADEV' }, { value: 'mdev', label: 'MDEV' }, { value: 'hdev', label: 'HDEV' }],
         s.scenario.devKind, v => store.update(st => ({ ...st, scenario: { ...st.scenario, devKind: v as DevKind } })), { key: 'adev:devkind' }),
@@ -40,6 +43,7 @@ export const adevView: ViewFactory = (root, store, client) => {
         numInput('span', ds.duration, v => store.update(st => updateDomain(st, d.domain, x => { x.duration = v; })), { unit: 's', min: 1, key: controlKey(['adev', 'span']) }),
         numInput('dt', ds.dt, v => store.update(st => updateDomain(st, d.domain, x => { x.dt = v; })), { unit: 's', min: 1e-4, key: controlKey(['adev', 'dt']) }),
         numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['adev', 'seed']) }))));
+    if (activeKey) root.querySelector<HTMLElement>(`[data-key="${activeKey}"]`)?.focus();
     const spec = benchToSpec(d);
     const n = adevSampleCount(ds.duration, ds.dt);
     const key = JSON.stringify([spec, n, ds.dt, s.scenario.seed, s.scenario.devKind, s.scenario.temperature, s.scenario.includeThermal]);

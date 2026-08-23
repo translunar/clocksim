@@ -53,11 +53,16 @@ export class LogLogChart {
   }
   destroy(): void { this.plot?.destroy(); this.plot = null; this.ghosts = null; this.ro.disconnect(); }
 
-  setData(x: Float64Array, ys: (Float64Array | null)[]): void {
+  /**
+   * `resetScales` defaults to uPlot's own default (true): a new scenario should re-autoscale.
+   * Pass false for a repeated draw of the *same* scenario — the Monte Carlo progress ticks —
+   * because re-autoscaling silently throws away any drag-zoom the user applied mid-run.
+   */
+  setData(x: Float64Array, ys: (Float64Array | null)[], opts: { resetScales?: boolean } = {}): void {
     const clean = (a: Float64Array | null) => a ? Array.from(a, v => (v > 0 && Number.isFinite(v) ? v : null)) : Array.from(x, () => null);
     const xs = Array.from(x);
     this.data = [xs, ...alignSeries(xs, ys.map(clean), this.defs.length)] as uPlot.AlignedData;
-    if (this.plot) this.plot.setData(this.data); else this.rebuild();
+    if (this.plot) this.plot.setData(this.data, opts.resetScales ?? true); else this.rebuild();
   }
 
   private rebuild(): void {

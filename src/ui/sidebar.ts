@@ -1,7 +1,7 @@
 import { h, numInput, select, controlKey, expander } from './dom';
 import { dfn } from './glossary';
 import type { Store } from './store';
-import { activeDomain, defaultDomainScenarios, updateDomain, uniqueId, type AppState, type DomainScenario, type Requirement } from './state';
+import { activeDomain, activeReq, defaultDomainScenarios, updateDomain, uniqueId, type AppState, type DomainScenario, type Requirement } from './state';
 import { ERROR_UNIT, type Domain } from '../engine/units';
 
 export const reqValueToSI = (domain: Domain, v: number) => ERROR_UNIT[domain].toSI(v);
@@ -15,7 +15,7 @@ export function mountSidebar(root: HTMLElement, store: Store): void {
     const ds = s.scenario.byDomain[dom];
     const setD = (fn: (d: DomainScenario) => void) => store.update(st => updateDomain(st, dom, fn));
     const eu = ERROR_UNIT[dom];
-    const active = ds.requirements.find(r => r.id === ds.activeRequirement) ?? null;
+    const active = activeReq(ds);
 
     const reqRow = (r: Requirement) => h('div', { class: 'row' },
       h('label', {}, h('input', { type: 'radio', name: 'activeReq', checked: ds.activeRequirement === r.id ? 'checked' : undefined, 'data-key': controlKey(['req', r.id, 'active']), on: { change: () => setD(x => { x.activeRequirement = r.id; }) } }), ' active'),

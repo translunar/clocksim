@@ -15,7 +15,7 @@ import type { ViewFactory, ViewHandle } from './views/types';
 const VIEWS: Record<View, { label: string; make: ViewFactory }> = {
   guide: { label: 'Guide', make: guideView },
   devices: { label: 'Devices', make: devicesView },
-  adev: { label: 'Allan deviation', make: adevView },
+  adev: { label: 'ADEV', make: adevView },
   growth: { label: 'Error growth', make: growthView },
   sizing: { label: 'Sizing', make: sizingView },
   compare: { label: 'DMTD', make: compareView },

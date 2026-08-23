@@ -3,7 +3,7 @@ import { exportDevice, importDevice } from '../../src/ui/views/devices';
 import { defaultState, uniqueId } from '../../src/ui/state';
 import { controlKey } from '../../src/ui/dom';
 
-describe('sidebar helpers', () => {
+describe('device export/import', () => {
   it('export/import round-trips a bench device', () => {
     const d = defaultState().bench[0]!;
     const back = importDevice(exportDevice(d));
