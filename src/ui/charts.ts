@@ -32,9 +32,19 @@ export class LogLogChart {
     this.bands = pairs;
     this.rebuild();
   }
-  addHLine(y: number, label: string): void { this.lines.push({ axis: 'y', v: y, label }); this.plot?.redraw(); }
-  addVLine(x: number, label: string): void { this.lines.push({ axis: 'x', v: x, label }); this.plot?.redraw(); }
-  clearLines(): void { this.lines = []; this.plot?.redraw(); }
+  addHLine(y: number, label: string): void { this.lines.push({ axis: 'y', v: y, label }); this.scheduleRepaint(); }
+  addVLine(x: number, label: string): void { this.lines.push({ axis: 'x', v: x, label }); this.scheduleRepaint(); }
+  clearLines(): void { this.lines = []; this.scheduleRepaint(); }
+
+  // uPlot defers the scale/commit work of setData(); a synchronous redraw() right after it rebuilds
+  // the series paths against unset scales and leaves the chart blank. Coalesce line changes into one
+  // repaint-only redraw on the next frame, after uPlot's own commit has run.
+  private repaintQueued = false;
+  private scheduleRepaint(): void {
+    if (this.repaintQueued) return;
+    this.repaintQueued = true;
+    requestAnimationFrame(() => { this.repaintQueued = false; this.plot?.redraw(false); });
+  }
   destroy(): void { this.plot?.destroy(); this.plot = null; this.ro.disconnect(); }
 
   setData(x: Float64Array, ys: (Float64Array | null)[]): void {
@@ -55,12 +65,12 @@ export class LogLogChart {
     const self = this;
     const o: uPlot.Options = {
       ...this.size(), title: this.opts.title,
-      scales: { x: { distr: 3, log: 10 }, y: { distr: 3, log: 10 } },
+      scales: { x: { time: false, distr: 3, log: 10 }, y: { distr: 3, log: 10 } },
       axes: [
         { label: this.opts.xLabel, values: (_u, v) => v.map(fmtSci) },
         { label: this.opts.yLabel, values: (_u, v) => v.map(fmtSci), size: 80 },
       ],
-      series: [{ label: 't' }, ...this.defs.map(d => ({ label: d.label, stroke: d.color, width: d.width ?? 2, dash: d.dash, fill: d.band ? d.color + '22' : undefined, points: { show: false } }))],
+      series: [{ label: 't' }, ...this.defs.map(d => ({ label: d.label, stroke: d.color, width: d.width ?? 2, dash: d.dash, fill: undefined /* band series get their lo→hi fill from the `bands` option; a per-series fill paints to the axis */, points: { show: false } }))],
       bands: this.bands.map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
       legend: { live: true },
       hooks: {

@@ -46,7 +46,7 @@ export const compareView: ViewFactory = (root, store, client) => {
     const cmp = s.scenario.compare;
     const opts = clocks.map(d => ({ value: d.id, label: d.name }));
     controls.replaceChildren(
-      select('DUT', opts, cmp.dut ?? '', v => set(c => { c.dut = v; })),
+      select('Device under test (DUT)', opts, cmp.dut ?? '', v => set(c => { c.dut = v; })),
       select('Reference', opts, cmp.ref ?? '', v => set(c => { c.ref = v; })),
       select('Offset oscillator', opts, cmp.osc ?? '', v => set(c => { c.osc = v; })),
       numInput('leak ε', cmp.leak, v => set(c => { c.leak = v; }), { min: 0, term: 'leak' }),
@@ -66,8 +66,8 @@ export const compareView: ViewFactory = (root, store, client) => {
       if (m.type !== 'compare') return;
       lastM = m;
       chart.setSeries([
-        { label: `DUT: ${dut.name}`, color: PALETTE[0]! }, { label: `REF: ${ref.name}`, color: PALETTE[1]! },
-        { label: `OSC: ${osc.name}`, color: PALETTE[7]!, dash: [4, 4], width: 1 }, { label: 'measured difference', color: PALETTE[2]!, width: 3 },
+        { label: `Device under test: ${dut.name}`, color: PALETTE[0]! }, { label: `Reference: ${ref.name}`, color: PALETTE[1]! },
+        { label: `Offset oscillator: ${osc.name}`, color: PALETTE[7]!, dash: [4, 4], width: 1 }, { label: 'measured difference', color: PALETTE[2]!, width: 3 },
       ]);
       chart.setData(m.tau, [m.dut, m.ref, m.osc, m.measured]);
       renderReadout(m, s);
