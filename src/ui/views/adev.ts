@@ -1,9 +1,9 @@
-import { h } from '../dom';
+import { h, numInput, expander, segmented, controlKey } from '../dom';
 import { dfn } from '../glossary';
 import { LogLogChart, PALETTE, fmtSci } from '../charts';
-import { benchToSpec, type AppState } from '../state';
+import { benchToSpec, updateDomain, type AppState } from '../state';
 import { DATASHEET_UNITS } from '../../engine/units';
-import type { Coefs } from '../../engine/deviations';
+import type { Coefs, DevKind } from '../../engine/deviations';
 import type { ViewFactory } from './types';
 
 export const adevSampleCount = (duration: number, dt: number) => Math.min(1 << 18, Math.max(1024, Math.round(duration / dt)));
@@ -12,9 +12,17 @@ const TERM_KEYS: (keyof Coefs)[] = ['Q', 'F', 'N', 'B', 'K', 'D', 'R'];
 const ASYMPTOTE_FORMULA: Record<keyof Coefs, string> = { Q: '(√3·Q/τ)', F: '(≈F/τ)', N: '(N/√τ)', B: '(0.664·B)', K: '(K·√(τ/3))', D: '(none)', R: '(R·τ/√2)' };
 
 export const adevView: ViewFactory = (root, store, client) => {
+  const controls = h('div', {});
   const chartEl = h('div', { class: 'chart' });
+  const simRow = h('div', {});
   const info = h('div', {});
-  root.replaceChildren(h('p', {}, dfn('ADEV', 'Allan deviation'), ' of the simulated rate-like series. Each dashed line is the ', dfn('asymptote', 'analytic asymptote'), ' for one coefficient — the ADEV that noise term alone would give; the dotted line is their combined total. Where the solid curve hugs a dashed line, that term dominates. ', dfn('confidence', 'Faded points are unreliable.')), chartEl, info);
+  root.replaceChildren(
+    h('p', {},
+      'This is the chart a datasheet describes. The solid curve is a simulated measurement of the selected device. ',
+      'Each dashed line is one noise term by itself — its ', dfn('asymptote'), '. ',
+      'Where the solid curve hugs a dashed line, that noise dominates at that averaging time. ',
+      dfn('confidence', 'Faded points'), ' come from too little data. Do not trust them.'),
+    controls, chartEl, simRow, info);
   const chart = new LogLogChart(chartEl, { xLabel: 'τ (s)', yLabel: 'deviation' });
   let pending: string | null = null;
   let lastKey = '';
@@ -22,8 +30,17 @@ export const adevView: ViewFactory = (root, store, client) => {
   const update = (s: AppState) => {
     const d = s.bench.find(x => x.id === s.selected);
     if (!d) { info.textContent = 'No device selected.'; return; }
-    const spec = benchToSpec(d);
     const ds = s.scenario.byDomain[d.domain];
+    controls.replaceChildren(
+      segmented([{ value: 'adev', label: 'ADEV' }, { value: 'mdev', label: 'MDEV' }, { value: 'hdev', label: 'HDEV' }],
+        s.scenario.devKind, v => store.update(st => ({ ...st, scenario: { ...st.scenario, devKind: v as DevKind } })), { key: 'adev:devkind' }),
+      ' ', dfn('MDEV', 'why MDEV?'), ' · ', dfn('HDEV', 'why HDEV?'));
+    simRow.replaceChildren(expander('adev:sim', `sim: span ${ds.duration} s · dt ${ds.dt} s · seed ${s.scenario.seed}`,
+      h('div', { class: 'row' },
+        numInput('span', ds.duration, v => store.update(st => updateDomain(st, d.domain, x => { x.duration = v; })), { unit: 's', min: 1, key: controlKey(['adev', 'span']) }),
+        numInput('dt', ds.dt, v => store.update(st => updateDomain(st, d.domain, x => { x.dt = v; })), { unit: 's', min: 1e-4, key: controlKey(['adev', 'dt']) }),
+        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['adev', 'seed']) }))));
+    const spec = benchToSpec(d);
     const n = adevSampleCount(ds.duration, ds.dt);
     const key = JSON.stringify([spec, n, ds.dt, s.scenario.seed, s.scenario.devKind, s.scenario.temperature, s.scenario.includeThermal]);
     if (key === lastKey) return;
@@ -38,9 +55,8 @@ export const adevView: ViewFactory = (root, store, client) => {
       const reliable = Float64Array.from(m.dev, (v, i) => (m.tau[i]! <= cutoff ? v : NaN));
       const faded = Float64Array.from(m.dev, (v, i) => (m.tau[i]! > cutoff ? v : NaN));
       const active = TERM_KEYS.filter(k => spec.coefs[k] > 0);
-      // The analytic asymptotes (and their RSS total) are ADEV-specific: MDEV/HDEV have different
-      // slopes for the same noise types (I4), and D has no attainable ADEV asymptote at all — the
-      // Allan variance diverges for it (I7) — so it's excluded from the overlay even under ADEV.
+      // Asymptotes are ADEV-specific: MDEV/HDEV have different slopes for the same noise, and the
+      // Allan variance diverges for D, so D never gets an asymptote even under ADEV.
       const isAdev = s.scenario.devKind === 'adev';
       const overlay = isAdev ? active.filter(k => k !== 'D') : [];
       chart.setSeries([
@@ -57,7 +73,7 @@ export const adevView: ViewFactory = (root, store, client) => {
       info.replaceChildren(
         h('table', {}, h('tr', {}, h('th', {}, 'coef'), h('th', {}, 'datasheet'), h('th', {}, 'SI'), ...(isAdev ? [h('th', {}, 'ADEV slope')] : [])),
           ...active.map(k => h('tr', {}, h('td', {}, dfn(k)), h('td', {}, `${d.coefs[k]} ${units[k]}`), h('td', {}, fmtSci(spec.coefs[k])), ...(isAdev ? [h('td', {}, slope[k])] : [])))),
-        ...(isAdev ? [] : [h('p', {}, 'Analytic asymptotes are shown for ADEV only; MDEV/HDEV have different slopes (see glossary).')]),
+        ...(isAdev ? [] : [h('p', {}, 'Asymptotes are drawn for ADEV only. MDEV and HDEV have different slopes for the same noise (see glossary).')]),
       );
     });
   };
