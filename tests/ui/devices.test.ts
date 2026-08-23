@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { exportDevice, importDevice } from '../../src/ui/sidebar';
+import { exportDevice, importDevice } from '../../src/ui/views/devices';
 import { defaultState, uniqueId } from '../../src/ui/state';
 import { controlKey } from '../../src/ui/dom';
 
