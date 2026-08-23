@@ -57,7 +57,9 @@ Every term in the UI has a plain-English definition on hover/expand.
   ambient temperature profile (none / step / ramp / sinusoid).
 - Compare view (clocks only): DMTD with DUT, reference, offset-oscillator
   roles, a white-PM measurement floor, and a common-mode rejection factor.
-- Glossary layer and a handful of saved "lesson" states.
+- Glossary layer and a Guide tab: plain-language explanations with
+  load-this-example links (URL hashes). Supersedes the v1.0 "lesson" states
+  — see §9.6.
 - Static build deployable to `translunar.github.io/tools/clocksim/`.
 
 ### Explicitly out of v1 (phase 2 candidates)
@@ -245,7 +247,7 @@ for tests and for a future Node/notebook use.
   source: string, editable: true }
 ```
 
-**Scenario:** `{ duration, dt, runs, seed, lastFix: {sigma, cadence, bias},
+**Scenario (v1.1, per-domain — see §9.5):** `{ duration, dt, runs, seed, lastFix: {sigma, cadence, bias},
 driftKnowledge: p33 | null, temperature: profile, modelTimescale: Tm | 'auto',
 estimateMethods: Set<'fudge'|'constant'|'gm'|'fittedK'>, requirements:
 Requirement[], activeRequirement }`. `'auto'` means T_m follows the active
@@ -281,10 +283,144 @@ Fix sources for scenario panel: star tracker NEA/cadence, GPS 1PPS sync.
 
 ## 7. Deployment
 
-`vite build` → `dist/` copied into `translunar.github.io/tools/clocksim/`
-(separate manual step; no coupling to Jekyll beyond a link).
+`vite build` (with `base: '/tools/clocksim/'`) → `dist/` copied into
+`translunar.github.io/tools/clocksim/` (separate manual step; no coupling to
+Jekyll beyond a link). No file in `dist/` may start with `_` (Jekyll drops
+them); Vite emits none by default. The Monte Carlo runs client-side in a
+plain Web Worker (postMessage, no SharedArrayBuffer), so GitHub Pages needs
+no special headers.
 
 ## 8. Open questions deferred to implementation
 - Exact MC defaults (runs × samples) after measuring worker throughput.
 - Whether uPlot's band rendering is adequate for percentile envelopes or a
   small custom draw hook is needed.
+
+## 9. UI reorganization (v1.1, 2026-08-23)
+
+Approved 2026-08-23 after live use showed the v1.0 layout was too busy to
+support comprehension: every control visible at once, no hierarchy, prose
+tooltips written densely. Where this section conflicts with §2 or §4, this
+section governs. The engine, worker protocol, and §5 tests are unchanged.
+
+### 9.1 Navigation
+
+Tabs are the only navigation:
+`Guide · Devices · ADEV · Error growth · Sizing · DMTD`.
+The lesson dropdown, its banner, and the lesson state-merging logic are
+deleted. "Compare (DMTD)" is renamed "DMTD".
+
+### 9.2 Sidebar → context strip
+
+The sidebar shows exactly two things, always visible, never scrolling:
+- **Selected device**: compact list of bench devices (name + domain badge);
+  click selects. No editing here.
+- **Active requirement**: `value · σ · duration` in domain units, editable
+  inline; a small `▸` reveals the full requirements list (add/remove/switch
+  active).
+
+Everything else the v1.0 sidebar held moves to the Devices tab (§9.3) or to
+the chart tab that uses it (§9.4).
+
+### 9.3 Devices tab
+
+The one place devices are created and edited: bench list, add-preset picker,
+the seven noise coefficients with datasheet units, `▸ thermal` (tempco, lag),
+`▸ model options` (states 2/3, flicker truth model exact-1/f vs Gauss-Markov
+sum + GM taus), JSON import/export, remove. Defaults: flicker truth = exact.
+Chart tabs never show an editor.
+
+### 9.4 Contextual controls on chart tabs
+
+Each chart tab owns the controls that affect only it; simulation internals
+collapse into a `▸ sim` row placed next to the output they affect.
+
+- **ADEV**: `[ADEV | MDEV | HDEV]` segmented toggle directly above the chart
+  (top level — not hidden); `▸ sim: dt · seed` below the chart.
+- **Error growth**: fix quality (σ, cadence), temperature profile, drift-rate
+  uncertainty; estimate methods default to **fudge + constant** with
+  `▸ more methods` revealing gm, fittedK, and T_m; `▸ sim: runs · dt · seed`
+  next to the Monte Carlo legend.
+- **Sizing**: cadence sweep range, fix σ.
+- **DMTD**: DUT / reference / offset-oscillator pickers, leak, measurement
+  floor; `▸ sim: dt · seed`.
+
+### 9.5 Per-domain scenario defaults
+
+Fix quality, requirements, and dt are stored **per domain**; selecting a
+device activates its domain's set. This fixes the v1.0 defect where a clock
+inherited the gyro star-tracker fix as σ = 333 µs and the Bayard steady state
+swamped all device differences (observed: cesium and rubidium plotting as
+near-identical flat lines).
+
+| domain | dt | fix σ | fix cadence | default requirement |
+|--------|-----|-------|-------------|---------------------|
+| gyro | 0.1 s | 333 µrad | 0.5 s | 1° · 3σ · 600 s |
+| accel | 0.1 s | 3 m | 1 s | 100 m · 3σ · 600 s |
+| clock | 1 s | 10 ns | 1 s | 1 µs · 3σ · 86 400 s |
+
+Shared across domains: runs = 200, seed = 1. The URL hash serializes all
+three domain sets.
+
+### 9.6 Guide tab
+
+Replaces lessons. Static prose sections — no state machinery — covering at
+least: reading slopes off an ADEV plot; when the one-hour fudge lets you
+down; cesium vs rubidium (where the 2-state model is nearly exact); DMTD and
+the offset oscillator; thermal (what the ADEV never told you). Each section
+ends with a plain `load this example` link: an `<a href="#...">` carrying a
+serialized state hash. Content is adapted from the v1.0 lesson blurbs,
+rewritten under §9.8.
+
+### 9.7 Monte Carlo visualization
+
+The single "Monte Carlo Nσ" line is replaced by three layers on the
+Error-growth chart:
+1. **Spaghetti**: up to 25 individual |error| trajectories, faint thin lines
+   (worker returns a decimated subsample on the log time grid).
+2. **Band**: shaded region from the median to the Nσ percentile.
+3. **Envelope**: the Nσ percentile emphasized, labeled honestly, e.g.
+   `99.7th %ile of 200 runs` — never "3σ".
+
+Visual grammar, applied on every chart: **dashed = analytic formula,
+solid = simulated, red horizontal line = requirement**. Legends and intros
+state which curves are formula and which are simulation.
+
+### 9.8 Prose standard
+
+Binding rule for every tooltip, intro, legend, and Guide section:
+**translate, don't simplify** — never say something inaccurate to make it
+accessible (per the translunar voice guide). One idea per sentence. No
+colon-chained clause stacks. Each glossary entry: what it is in plain words,
+then why you'd care, then (only if needed) the formula. Example rewrite of
+the v1.0 Sizing intro:
+
+> Suppose you get a fix every T seconds. This chart shows how big your error
+> stays, for each device, as T grows. Where a line is flat, fixes come often
+> enough that device quality doesn't matter. No simulation here — pure
+> formula.
+
+### 9.9 Visual style
+
+Frozen's structure, translunar.io's palette. Dark-only
+(`color-scheme: dark`).
+
+- **Layout/typography** (from `~/Projects/frozen/web/src/style.css`): fixed
+  left context strip; uppercase letter-spaced 11px section headers; 13px UI
+  text; `font-variant-numeric: tabular-nums` wherever numbers appear;
+  hairline borders; 4px radii; dense aligned cards.
+- **Palette/fonts** (from `translunar.github.io/_sass/minima/
+  custom-variables.scss`): background `#0d0a14`, text `#e2ddf0`, brand
+  purple `#a87dc8` for active tab / selected device / links, pink `#f4a7c0`
+  secondary accent, borders `#2a2040`/`#3d3060`; Space Grotesk for headings
+  and UI, Space Mono for numbers and coefficients; 3px brand-purple top
+  border on the header.
+- **Charts**: series palette tuned for legibility on the dark purple ground;
+  the requirement line is red regardless of palette.
+
+### 9.10 Explicitly unchanged
+
+All §3 physics and `src/engine/**` math; the URL-hash principle
+(full state in hash); presets and their editability; and the §5 test suite
+(which must stay green through the reorganization). One worker-protocol
+extension is allowed: the `mc` responses gain a decimated trajectory
+subsample for §9.7's spaghetti; all other messages are unchanged.
