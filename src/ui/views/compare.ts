@@ -1,7 +1,7 @@
-import { h, numInput, select } from '../dom';
+import { h, numInput, select, expander, controlKey } from '../dom';
 import { dfn } from '../glossary';
 import { LogLogChart, PALETTE, fmtSci, fmtTime } from '../charts';
-import { benchToSpec, effectiveTm, type AppState, type Scenario } from '../state';
+import { benchToSpec, effectiveTm, updateDomain, type AppState, type Scenario } from '../state';
 import { crossover, estimateSigma, timeToRequirement } from '../../engine/models';
 import { logTimes } from '../../engine/montecarlo';
 import { ERROR_UNIT } from '../../engine/units';
@@ -12,8 +12,15 @@ import type { ViewFactory } from './types';
 type CompareResponse = Extract<WorkerResponse, { type: 'compare' }>;
 
 export const compareView: ViewFactory = (root, store, client) => {
-  const controls = h('div', { class: 'row' }), chartEl = h('div', { class: 'chart' }), readout = h('div', { class: 'readout' });
-  root.replaceChildren(h('p', {}, dfn('DMTD', 'Dual-mixer time-difference'), ' comparison of two clocks from the bench against a common offset oscillator. With zero ', dfn('leak'), ' the offset oscillator is invisible; the ', dfn('floor'), ' sets the short-τ limit. The ', dfn('crossover'), ' of DUT and reference marks the natural disciplining time constant.'), controls, chartEl, readout);
+  const controls = h('div', { class: 'row' }), simRow = h('div', {}), chartEl = h('div', { class: 'chart' }), readout = h('div', { class: 'readout' });
+  root.replaceChildren(
+    h('p', {},
+      'To compare two good clocks you need a measurement quieter than both. ',
+      'A ', dfn('DMTD'), ' mixes each clock against a shared offset oscillator. ',
+      'The offset oscillator is common to both channels, so its noise cancels in the difference — unless some fraction ', dfn('leak', 'leaks'), ' through. ',
+      'The ', dfn('floor'), ' is the electronics noise below which nothing can be measured. ',
+      'The ', dfn('crossover'), ' marks where the device under test becomes noisier than the reference.'),
+    controls, simRow, chartEl, readout);
   const chart = new LogLogChart(chartEl, { xLabel: 'τ (s)', yLabel: 'σy(τ)' });
   let pending: string | null = null, lastKey = '', lastM: CompareResponse | null = null;
 
@@ -37,7 +44,7 @@ export const compareView: ViewFactory = (root, store, client) => {
     }
     readout.replaceChildren(
       h('div', {}, h('span', {}, dfn('crossover')), h('b', {}, x ? fmtTime(x) : 'none in range')),
-      h('div', {}, h('span', {}, `DUT holdover to requirement (constant-B estimate${req ? `, ${eu.fromSI(req.value)} ${eu.label} ${req.sigma}σ` : ''})`), h('b', {}, holdover)),
+      h('div', {}, h('span', {}, `DUT holdover to requirement (constant-B formula${req ? `, ${eu.fromSI(req.value)} ${eu.label} ${req.sigma}σ` : ''})`), h('b', {}, holdover)),
       h('div', {}, h('span', {}, `measured σy at τ = ${fmtTime(m.tau[0] ?? cs.dt)}`), h('b', {}, fmtSci(m.measured[0] ?? 0))),
     );
   };
@@ -54,9 +61,14 @@ export const compareView: ViewFactory = (root, store, client) => {
       numInput('leak ε', cmp.leak, v => set(c => { c.leak = v; }), { min: 0, term: 'leak' }),
       numInput('floor', cmp.floorQ * 1e12, v => set(c => { c.floorQ = v * 1e-12; }), { min: 0, unit: 'ps', term: 'floor' }),
     );
+    const cs = s.scenario.byDomain.clock;
+    simRow.replaceChildren(expander('dmtd:sim', `sim: span ${cs.duration} s · dt ${cs.dt} s · seed ${s.scenario.seed}`,
+      h('div', { class: 'row' },
+        numInput('span', cs.duration, v => store.update(st => updateDomain(st, 'clock', x => { x.duration = v; })), { unit: 's', min: 1, key: controlKey(['dmtd', 'span']) }),
+        numInput('dt', cs.dt, v => store.update(st => updateDomain(st, 'clock', x => { x.dt = v; })), { unit: 's', min: 1e-3, key: controlKey(['dmtd', 'dt']) }),
+        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['dmtd', 'seed']) }))));
     if (clocks.length < 2) { readout.textContent = 'Add at least two clocks to the bench.'; return; }
     const dut = clocks.find(d => d.id === cmp.dut) ?? clocks[0]!, ref = clocks.find(d => d.id === cmp.ref) ?? clocks[1]!, osc = clocks.find(d => d.id === cmp.osc) ?? ref;
-    const cs = s.scenario.byDomain.clock;
     const n = adevSampleCount(cs.duration, cs.dt);
     const key = JSON.stringify([dut, ref, osc, cmp.leak, cmp.floorQ, n, cs.dt, s.scenario.seed, s.scenario.devKind]);
     if (key === lastKey) { if (lastM) renderReadout(lastM, s); return; }
