@@ -10,7 +10,11 @@ const P = (id: string) => fromPreset(PRESETS.find(p => p.id === id)!);
 /** Each example is a plain URL hash — loading one is just navigation (spec §9.6). */
 function ex(build: () => AppState): string { return '#' + toHash(build()); }
 
-const EXAMPLES = {
+/**
+ * Exported so a test can decode every hash: these are built at module load with
+ * `PRESETS.find(...)!`, so a renamed preset id would otherwise throw at app boot.
+ */
+export const EXAMPLES = {
   slopes: ex(() => { const s = defaultState(); const g = P('stim300-gyro'); g.coefs.K = 0.05; s.bench = [g]; s.selected = g.id; return { ...updateDomain(s, 'gyro', ds => { ds.duration = 36000; ds.dt = 0.1; }), view: 'adev' as const }; }),
   fudge: ex(() => { const s = defaultState(); s.bench = [P('lsm6dsl-gyro')]; s.selected = 'lsm6dsl-gyro'; s.scenario.Tm = 3600; s.scenario.estimateMethods = ['fudge', 'constant', 'gm']; return { ...s, view: 'growth' as const }; }),
   clocks: ex(() => { const s = defaultState(); s.bench = [P('cesium-5071a'), P('prs10-rb')]; s.selected = 'cesium-5071a'; s.scenario.runs = 100; return { ...s, view: 'growth' as const }; }),
@@ -46,6 +50,9 @@ export const guideView: ViewFactory = (root) => {
         'For a ten-minute outage that formula is roughly 4× optimistic. ',
         'The ', dfn('constant'), ' model — treat the bias as an unknown constant — has the right shape and is the honest single number for an outage budget. ',
         'Load the example and compare both dashed lines against the simulated truth.'),
+      h('p', { class: 'inferred' },
+        'The analytic curves follow D. Bayard’s method (JPL EM-3455-00-005). This tool uses the same algebra as our open implementation: ',
+        h('a', { href: 'https://github.com/translunar/bayard', target: '_blank', rel: 'noopener' }, 'translunar/bayard'), '.'),
       link(EXAMPLES.fudge)),
     h('section', {},
       h('h3', {}, 'Cesium versus rubidium'),
