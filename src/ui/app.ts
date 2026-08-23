@@ -4,6 +4,7 @@ import { Store, toHash, fromHash } from './store';
 import { defaultState, type AppState, type View } from './state';
 import { mountSidebar } from './sidebar';
 import { SimClient } from './workerClient';
+import { guideView } from './views/guide';
 import { devicesView } from './views/devices';
 import { adevView } from './views/adev';
 import { growthView } from './views/growth';
@@ -12,6 +13,7 @@ import { compareView } from './views/compare';
 import type { ViewFactory, ViewHandle } from './views/types';
 
 const VIEWS: Record<View, { label: string; make: ViewFactory }> = {
+  guide: { label: 'Guide', make: guideView },
   devices: { label: 'Devices', make: devicesView },
   adev: { label: 'Allan deviation', make: adevView },
   growth: { label: 'Error growth', make: growthView },

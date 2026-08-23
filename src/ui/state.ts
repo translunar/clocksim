@@ -23,7 +23,7 @@ export interface Scenario {
   devKind: DevKind;
   compare: { dut: string | null; ref: string | null; osc: string | null; leak: number; floorQ: number };
 }
-export type View = 'devices' | 'adev' | 'growth' | 'sizing' | 'compare';
+export type View = 'guide' | 'devices' | 'adev' | 'growth' | 'sizing' | 'compare';
 export interface AppState { bench: BenchDevice[]; selected: string | null; scenario: Scenario; view: View }
 
 /** Returns `base` if unused among `existing`, else the first `base-2`, `base-3`, … that is free. */
