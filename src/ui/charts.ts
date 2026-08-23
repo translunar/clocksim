@@ -11,6 +11,7 @@ export class LogLogChart {
   private lines: { axis: 'x' | 'y'; v: number; label: string; color: string }[] = [];
   private data: uPlot.AlignedData = [[]];
   private bands: [number, number][] = [];
+  private ghosts: { x: Float64Array; ys: Float64Array[]; color: string } | null = null;
   private ro: ResizeObserver;
 
   constructor(private el: HTMLElement, private opts: { xLabel: string; yLabel: string; title?: string }) {
@@ -32,6 +33,11 @@ export class LogLogChart {
     this.bands = pairs;
     this.rebuild();
   }
+  /** Faint overlay trajectories (MC spaghetti) drawn in the draw hook — no series, no legend. */
+  setGhosts(x: Float64Array, ys: Float64Array[], color: string): void {
+    this.ghosts = ys.length ? { x, ys, color } : null;
+    this.scheduleRepaint();
+  }
   addHLine(y: number, label: string, color = '#e2564a'): void { this.lines.push({ axis: 'y', v: y, label, color }); this.scheduleRepaint(); }
   addVLine(x: number, label: string, color = '#8a7fa8'): void { this.lines.push({ axis: 'x', v: x, label, color }); this.scheduleRepaint(); }
   clearLines(): void { this.lines = []; this.scheduleRepaint(); }
@@ -45,7 +51,7 @@ export class LogLogChart {
     this.repaintQueued = true;
     requestAnimationFrame(() => { this.repaintQueued = false; this.plot?.redraw(false); });
   }
-  destroy(): void { this.plot?.destroy(); this.plot = null; this.ro.disconnect(); }
+  destroy(): void { this.plot?.destroy(); this.plot = null; this.ghosts = null; this.ro.disconnect(); }
 
   setData(x: Float64Array, ys: (Float64Array | null)[]): void {
     const clean = (a: Float64Array | null) => a ? Array.from(a, v => (v > 0 && Number.isFinite(v) ? v : null)) : Array.from(x, () => null);
@@ -74,8 +80,30 @@ export class LogLogChart {
       bands: this.bands.map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
       legend: { live: true },
       hooks: {
+        // drawAxes fires after the axes/grid and *before* drawSeries, so the ghost trajectories land
+        // underneath the band fill, the median and the envelope (§9.7: spaghetti behind the band).
+        // The `draw` hook below runs after the series, which is where the annotation lines belong.
+        drawAxes: [u => {
+          if (!self.ghosts) return;
+          const ctx = u.ctx;
+          ctx.save(); ctx.strokeStyle = self.ghosts.color; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.rect(u.bbox.left, u.bbox.top, u.bbox.width, u.bbox.height); ctx.clip();
+          for (const t of self.ghosts.ys) {
+            ctx.beginPath();
+            let started = false;
+            for (let i = 0; i < self.ghosts.x.length; i++) {
+              const yv = t[i]!;
+              if (!(yv > 0) || !Number.isFinite(yv)) { started = false; continue; }  // log scale: skip ≤0 (|error| dips at zero crossings)
+              const px = u.valToPos(self.ghosts.x[i]!, 'x', true), py = u.valToPos(yv, 'y', true);
+              if (started) ctx.lineTo(px, py); else { ctx.moveTo(px, py); started = true; }
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }],
         draw: [u => {
-          const ctx = u.ctx; ctx.save(); ctx.setLineDash([6, 4]); ctx.font = '11px "Space Mono", monospace';
+          const ctx = u.ctx;
+          ctx.save(); ctx.setLineDash([6, 4]); ctx.font = '11px "Space Mono", monospace';
           for (const l of self.lines) {
             ctx.strokeStyle = l.color; ctx.fillStyle = l.color;
             if (l.axis === 'y') { const py = u.valToPos(l.v, 'y', true); ctx.beginPath(); ctx.moveTo(u.bbox.left, py); ctx.lineTo(u.bbox.left + u.bbox.width, py); ctx.stroke(); ctx.fillText(l.label, u.bbox.left + 6, py - 4); }
