@@ -34,3 +34,21 @@ export function select(label: string | Node, options: { value: string; label: st
   const sel = h('select', { 'data-key': opts.key, on: { change: e => onChange((e.target as HTMLSelectElement).value) } }, ...options.map(o => h('option', { value: o.value, selected: o.value === value ? 'selected' : undefined }, o.label)));
   return h('label', {}, label, sel);
 }
+
+/**
+ * Collapsible `▸` section. Views re-render by replacing children wholesale, which would
+ * collapse a native <details> every time — so open state is remembered per `key` in a
+ * module-level map and re-applied on rebuild.
+ */
+const expanderOpen = new Map<string, boolean>();
+export function expander(key: string, summary: string, ...children: (Node | string | null | undefined)[]): HTMLElement {
+  return h('details', {
+    class: 'exp', 'data-key': key, open: expanderOpen.get(key) ? 'open' : undefined,
+    on: { toggle: e => expanderOpen.set(key, (e.target as HTMLDetailsElement).open) },
+  }, h('summary', {}, summary), ...children);
+}
+
+export function segmented(options: { value: string; label: string }[], value: string, onChange: (v: string) => void, opts: { key?: string } = {}): HTMLElement {
+  return h('div', { class: 'seg', 'data-key': opts.key, role: 'group' },
+    ...options.map(o => h('button', { class: o.value === value ? 'active' : '', on: { click: () => { if (o.value !== value) onChange(o.value); } } }, o.label)));
+}
