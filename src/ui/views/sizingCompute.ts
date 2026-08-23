@@ -2,22 +2,16 @@ import { steadyStateVsCadence } from '../../engine/models';
 import { benchToSpec, effectiveTm, type BenchDevice, type Requirement, type Scenario } from '../state';
 import type { Domain } from '../../engine/units';
 
-function buildCadenceGrid(): Float64Array {
+export function cadenceGrid(lo = 0.01, hi = 1e4): Float64Array {
   const out: number[] = [];
-  for (let e = -2 * 8; e <= 4 * 8; e++) out.push(Math.pow(10, e / 8));
+  const n = 48;
+  for (let i = 0; i <= n; i++) out.push(lo * Math.pow(hi / lo, i / n));
   return Float64Array.from(out);
-}
-
-const CADENCE_GRID = buildCadenceGrid();
-
-export function cadenceGrid(): Float64Array {
-  return CADENCE_GRID;
 }
 
 export interface KneeCurve { id: string; name: string; sigma: Float64Array; slowestCadence: number | null }
 
-export function computeKnee(devices: BenchDevice[], scenario: Scenario, dom: Domain, req: Requirement | null): KneeCurve[] {
-  const grid = CADENCE_GRID;
+export function computeKnee(devices: BenchDevice[], scenario: Scenario, dom: Domain, req: Requirement | null, grid: Float64Array): KneeCurve[] {
   const ds = scenario.byDomain[dom];
   return devices.filter(d => d.domain !== 'accel').map(d => {
     const sigma = steadyStateVsCadence(benchToSpec(d), { sigma: ds.fix.sigma, bias: ds.fix.bias }, effectiveTm(scenario, dom), grid);
