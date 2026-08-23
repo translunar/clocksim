@@ -346,17 +346,20 @@ collapse into a `▸ sim` row placed next to the output they affect.
 
 ### 9.5 Per-domain scenario defaults
 
-Fix quality, requirements, and dt are stored **per domain**; selecting a
+Fix quality, requirements, duration, and dt are stored **per domain**; selecting a
 device activates its domain's set. This fixes the v1.0 defect where a clock
 inherited the gyro star-tracker fix as σ = 333 µs and the Bayard steady state
 swamped all device differences (observed: cesium and rubidium plotting as
 near-identical flat lines).
 
-| domain | dt | fix σ | fix cadence | default requirement |
-|--------|-----|-------|-------------|---------------------|
-| gyro | 0.1 s | 333 µrad | 0.5 s | 1° · 3σ · 600 s |
-| accel | 0.1 s | 3 m | 1 s | 100 m · 3σ · 600 s |
-| clock | 1 s | 10 ns | 1 s | 1 µs · 3σ · 86 400 s |
+| domain | duration | dt | fix σ | fix cadence | default requirement |
+|--------|----------|-----|-------|-------------|---------------------|
+| gyro | 3 600 s | 0.1 s | 333 µrad | 0.5 s | 1° · 3σ · 600 s |
+| accel | 3 600 s | 0.1 s | 3 m | 1 s | 100 m · 3σ · 600 s |
+| clock | 86 400 s | 1 s | 10 ns | 1 s | 1 µs · 3σ · 86 400 s |
+
+Duration is per-domain too (a clock session spans a day, a gyro session an
+hour); it is edited in the `▸ sim` rows (§9.4) alongside dt and seed.
 
 Shared across domains: runs = 200, seed = 1. The URL hash serializes all
 three domain sets.
