@@ -424,6 +424,9 @@ Frozen's structure, translunar.io's palette. Dark-only
 
 All §3 physics and `src/engine/**` math; the URL-hash principle
 (full state in hash); presets and their editability; and the §5 test suite
-(which must stay green through the reorganization). One worker-protocol
-extension is allowed: the `mc` responses gain a decimated trajectory
-subsample for §9.7's spaghetti; all other messages are unchanged.
+(which must stay green through the reorganization). Two worker-protocol
+extensions are allowed: the `mc` responses gain a decimated trajectory
+subsample and a median (`p50`) for §9.7's spaghetti and band, and the
+`compare` response gains `lo`/`hi` confidence bounds for the measured
+curve (so the DMTD tab can show single-realization ADEV scatter honestly);
+all other messages are unchanged.
