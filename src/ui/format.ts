@@ -1,4 +1,4 @@
-export const PALETTE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#4b5563'];
+export const PALETTE = ['#c9a0dc', '#ffc24a', '#7bd88f', '#6cc7e8', '#f4a7c0', '#b8b0ff', '#e8a06c', '#98a2b3'];
 
 export function fmtSci(v: number): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return ''; // uPlot passes null for unlabeled log ticks

@@ -48,7 +48,7 @@ export const adevView: ViewFactory = (root, store, client) => {
         { label: 'unreliable (τ > record/10)', color: PALETTE[7]!, width: 1 },
         { label: '68% band lo', color: PALETTE[0]!, width: 0.5, band: true },
         { label: '68% band hi', color: PALETTE[0]!, width: 0.5, band: true },
-        ...(isAdev ? [{ label: 'analytic total', color: '#000', dash: [2, 3] }] : []),
+        ...(isAdev ? [{ label: 'analytic total', color: '#e2ddf0', dash: [2, 3] }] : []),
         ...overlay.map((k, i) => ({ label: `${k} asymptote ${ASYMPTOTE_FORMULA[k]}`, color: PALETTE[(i + 1) % 8]!, dash: [8, 4], width: 1 })),
       ]);
       chart.setBands([[3, 4]]);

@@ -8,7 +8,7 @@ export interface SeriesDef { label: string; color: string; dash?: number[]; widt
 export class LogLogChart {
   private plot: uPlot | null = null;
   private defs: SeriesDef[] = [];
-  private lines: { axis: 'x' | 'y'; v: number; label: string }[] = [];
+  private lines: { axis: 'x' | 'y'; v: number; label: string; color: string }[] = [];
   private data: uPlot.AlignedData = [[]];
   private bands: [number, number][] = [];
   private ro: ResizeObserver;
@@ -32,8 +32,8 @@ export class LogLogChart {
     this.bands = pairs;
     this.rebuild();
   }
-  addHLine(y: number, label: string): void { this.lines.push({ axis: 'y', v: y, label }); this.scheduleRepaint(); }
-  addVLine(x: number, label: string): void { this.lines.push({ axis: 'x', v: x, label }); this.scheduleRepaint(); }
+  addHLine(y: number, label: string, color = '#e2564a'): void { this.lines.push({ axis: 'y', v: y, label, color }); this.scheduleRepaint(); }
+  addVLine(x: number, label: string, color = '#8a7fa8'): void { this.lines.push({ axis: 'x', v: x, label, color }); this.scheduleRepaint(); }
   clearLines(): void { this.lines = []; this.scheduleRepaint(); }
 
   // uPlot defers the scale/commit work of setData(); a synchronous redraw() right after it rebuilds
@@ -67,16 +67,17 @@ export class LogLogChart {
       ...this.size(), title: this.opts.title,
       scales: { x: { time: false, distr: 3, log: 10 }, y: { distr: 3, log: 10 } },
       axes: [
-        { label: this.opts.xLabel, values: (_u, v) => v.map(fmtSci) },
-        { label: this.opts.yLabel, values: (_u, v) => v.map(fmtSci), size: 80 },
+        { label: this.opts.xLabel, values: (_u, v) => v.map(fmtSci), stroke: '#8a7fa8', grid: { stroke: '#2a2040' }, ticks: { stroke: '#2a2040' } },
+        { label: this.opts.yLabel, values: (_u, v) => v.map(fmtSci), size: 80, stroke: '#8a7fa8', grid: { stroke: '#2a2040' }, ticks: { stroke: '#2a2040' } },
       ],
       series: [{ label: 't' }, ...this.defs.map(d => ({ label: d.label, stroke: d.color, width: d.width ?? 2, dash: d.dash, fill: undefined /* band series get their lo→hi fill from the `bands` option; a per-series fill paints to the axis */, points: { show: false } }))],
       bands: this.bands.map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
       legend: { live: true },
       hooks: {
         draw: [u => {
-          const ctx = u.ctx; ctx.save(); ctx.strokeStyle = '#111'; ctx.setLineDash([6, 4]); ctx.font = '12px sans-serif'; ctx.fillStyle = '#111';
+          const ctx = u.ctx; ctx.save(); ctx.setLineDash([6, 4]); ctx.font = '11px "Space Mono", monospace';
           for (const l of self.lines) {
+            ctx.strokeStyle = l.color; ctx.fillStyle = l.color;
             if (l.axis === 'y') { const py = u.valToPos(l.v, 'y', true); ctx.beginPath(); ctx.moveTo(u.bbox.left, py); ctx.lineTo(u.bbox.left + u.bbox.width, py); ctx.stroke(); ctx.fillText(l.label, u.bbox.left + 6, py - 4); }
             else { const px = u.valToPos(l.v, 'x', true); ctx.beginPath(); ctx.moveTo(px, u.bbox.top); ctx.lineTo(px, u.bbox.top + u.bbox.height); ctx.stroke(); ctx.fillText(l.label, px + 4, u.bbox.top + 14); }
           }
