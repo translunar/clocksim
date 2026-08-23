@@ -1,6 +1,6 @@
 import { type AppState, type View, defaultState, isBenchDevice, sanitizeScenario } from './state';
 
-const VALID_VIEWS = new Set<View>(['adev', 'growth', 'compare', 'sizing']);
+const VALID_VIEWS = new Set<View>(['devices', 'adev', 'growth', 'sizing', 'compare']);
 
 export class Store {
   private listeners = new Set<(s: AppState) => void>();

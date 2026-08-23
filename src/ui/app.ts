@@ -4,17 +4,19 @@ import { Store, toHash, fromHash } from './store';
 import { defaultState, type AppState, type View } from './state';
 import { mountSidebar } from './sidebar';
 import { SimClient } from './workerClient';
+import { devicesView } from './views/devices';
 import { adevView } from './views/adev';
 import { growthView } from './views/growth';
-import { compareView } from './views/compare';
 import { sizingView } from './views/sizing';
+import { compareView } from './views/compare';
 import type { ViewFactory, ViewHandle } from './views/types';
 
 const VIEWS: Record<View, { label: string; make: ViewFactory }> = {
+  devices: { label: 'Devices', make: devicesView },
   adev: { label: 'Allan deviation', make: adevView },
   growth: { label: 'Error growth', make: growthView },
-  compare: { label: 'Compare (DMTD)', make: compareView },
   sizing: { label: 'Sizing', make: sizingView },
+  compare: { label: 'DMTD', make: compareView },
 };
 
 export function mountApp(root: HTMLElement): void {
