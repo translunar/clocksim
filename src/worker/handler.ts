@@ -1,4 +1,5 @@
 import type { WorkerRequest, WorkerResponse } from './protocol';
+import { SAMPLE_TRAJECTORIES } from './protocol';
 import { Prng } from '../engine/prng';
 import { simulateRate, comparePhase } from '../engine/bench';
 import { deviation, frequencyToPhase, logSpacedM, analyticAdevTerms, analyticAdev } from '../engine/deviations';
@@ -27,10 +28,13 @@ export async function handleRequest(msg: WorkerRequest, post: (m: WorkerResponse
     } else if (msg.type === 'mc') {
       const times = logTimes(msg.req.dt, msg.req.duration);
       const env = new Envelope(times);
-      const snapshot = () => ({ runs: env.runs, times, p68: env.percentile(PERCENTILES.p68), p95: env.percentile(PERCENTILES.p95), p997: env.percentile(PERCENTILES.p997) });
+      const sample: Float64Array[] = [];
+      const snapshot = () => ({ runs: env.runs, times, sample, p50: env.percentile(0.5), p68: env.percentile(PERCENTILES.p68), p95: env.percentile(PERCENTILES.p95), p997: env.percentile(PERCENTILES.p997) });
       for (let r = 0; r < msg.req.runs; r++) {
         if (isCancelled()) break;
-        env.add(runOne(msg.req, times, r));
+        const errs = runOne(msg.req, times, r);
+        env.add(errs);
+        if (sample.length < SAMPLE_TRAJECTORIES) sample.push(errs);
         if ((r + 1) % msg.batch === 0 && r + 1 < msg.req.runs) { post({ type: 'mc-progress', id: msg.id, ...snapshot() }); await yieldToLoop(); }
       }
       post({ type: 'mc-done', id: msg.id, ...snapshot() });

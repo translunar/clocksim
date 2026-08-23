@@ -25,4 +25,27 @@ describe('worker handler', () => {
     const last = out[out.length - 1]!;
     if (last.type === 'mc-done') expect(last.runs).toBeLessThan(30);
   });
+  it('mc responses carry a trajectory subsample for spaghetti (spec §9.7)', async () => {
+    const messages: WorkerResponse[] = [];
+    const req = { spec: g, dt: 1, duration: 100, runs: 30, seed: 1, profile: { kind: 'none' as const }, includeThermal: false, fix: { sigma: 1e-4, cadence: 1, bias: 0 }, driftKnowledge: null, Tm: 100 };
+    await handleRequest({ type: 'mc', id: 'x', req, batch: 10 }, m => messages.push(m));
+    const done = messages.find(m => m.type === 'mc-done')!;
+    if (done.type !== 'mc-done') throw new Error('expected mc-done');
+    expect(done.sample.length).toBe(25);
+    for (const t of done.sample) {
+      expect(t).toBeInstanceOf(Float64Array);
+      expect(t.length).toBe(done.times.length);
+    }
+    expect(done.p50).toBeInstanceOf(Float64Array);
+    expect(done.p50.length).toBe(done.times.length);
+    for (let i = 0; i < done.times.length; i++) expect(done.p50[i]!).toBeLessThanOrEqual(done.p997[i]!);
+  });
+  it('subsample is capped by runs when runs < 25', async () => {
+    const messages: WorkerResponse[] = [];
+    const req = { spec: g, dt: 1, duration: 100, runs: 5, seed: 1, profile: { kind: 'none' as const }, includeThermal: false, fix: { sigma: 1e-4, cadence: 1, bias: 0 }, driftKnowledge: null, Tm: 100 };
+    await handleRequest({ type: 'mc', id: 'x', req, batch: 10 }, m => messages.push(m));
+    const done = messages.find(m => m.type === 'mc-done')!;
+    if (done.type !== 'mc-done') throw new Error('expected mc-done');
+    expect(done.sample.length).toBe(5);
+  });
 });
