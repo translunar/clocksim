@@ -9,11 +9,12 @@ import type { ViewFactory } from './types';
 export const adevSampleCount = (duration: number, dt: number) => Math.min(1 << 18, Math.max(1024, Math.round(duration / dt)));
 
 const TERM_KEYS: (keyof Coefs)[] = ['Q', 'F', 'N', 'B', 'K', 'D', 'R'];
+const ASYMPTOTE_FORMULA: Record<keyof Coefs, string> = { Q: '(√3·Q/τ)', F: '(≈F/τ)', N: '(N/√τ)', B: '(0.664·B)', K: '(K·√(τ/3))', D: '(none)', R: '(R·τ/√2)' };
 
 export const adevView: ViewFactory = (root, store, client) => {
   const chartEl = h('div', { class: 'chart' });
   const info = h('div', {});
-  root.replaceChildren(h('p', {}, dfn('ADEV', 'Allan deviation'), ' of the simulated rate-like series with the analytic asymptote for each coefficient. ', dfn('confidence', 'Faded points are unreliable.')), chartEl, info);
+  root.replaceChildren(h('p', {}, dfn('ADEV', 'Allan deviation'), ' of the simulated rate-like series. Each dashed line is the ', dfn('asymptote', 'analytic asymptote'), ' for one coefficient — the ADEV that noise term alone would give; the dotted line is their combined total. Where the solid curve hugs a dashed line, that term dominates. ', dfn('confidence', 'Faded points are unreliable.')), chartEl, info);
   const chart = new LogLogChart(chartEl, { xLabel: 'τ (s)', yLabel: 'deviation' });
   let pending: string | null = null;
   let lastKey = '';
@@ -47,7 +48,7 @@ export const adevView: ViewFactory = (root, store, client) => {
         { label: '68% band lo', color: PALETTE[0]!, width: 0.5, band: true },
         { label: '68% band hi', color: PALETTE[0]!, width: 0.5, band: true },
         ...(isAdev ? [{ label: 'analytic total', color: '#000', dash: [2, 3] }] : []),
-        ...overlay.map((k, i) => ({ label: `${k} asymptote`, color: PALETTE[(i + 1) % 8]!, dash: [8, 4], width: 1 })),
+        ...overlay.map((k, i) => ({ label: `${k} asymptote ${ASYMPTOTE_FORMULA[k]}`, color: PALETTE[(i + 1) % 8]!, dash: [8, 4], width: 1 })),
       ]);
       chart.setBands([[3, 4]]);
       chart.setData(m.tau, [reliable, faded, m.lo, m.hi, ...(isAdev ? [m.analyticTotal] : []), ...overlay.map(k => m.analytic[k])]);
