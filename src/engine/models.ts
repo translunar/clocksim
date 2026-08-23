@@ -102,6 +102,11 @@ export function contributions(spec: DeviceSpec, o: EstimateOptions, times: Float
   const kEff = kEffFor(spec, o.method, o.Tm);
   const P = initialCovariance(spec, o.fix, o.driftKnowledge, kEff);
   const B2 = c.B ** 2;
+  // kEff² minus the fudge B-share is the device's own K², but computing it as a subtraction can
+  // cancel to a tiny negative (sqrt(x)² < x in binary64) when K = 0 — that made √ NaN and wiped
+  // out the whole curve for e.g. the CSAC at Tm = 86400 s. Clamp, as the constant-method fold-out
+  // below already does.
+  const kResidual = Math.max(0, kEff ** 2 - (o.method === 'fudge' ? B2 / o.Tm : 0));
   const out: Record<ContributionKey, Float64Array> = {
     initial: new Float64Array(n), Q: new Float64Array(n), N: new Float64Array(n), B: new Float64Array(n),
     K: new Float64Array(n), D: new Float64Array(n), R: new Float64Array(n), thermal: thermalError(spec, o, times),
@@ -118,7 +123,7 @@ export function contributions(spec: DeviceSpec, o: EstimateOptions, times: Float
     if (lvl === 1) {
       out.Q[i] = c.Q;                                   // bounded phase noise
       out.N[i] = Math.sqrt(whiteVar(c.N ** 2, 0, t));
-      out.K[i] = Math.sqrt(whiteVar(kEff ** 2 - (o.method === 'fudge' ? B2 / o.Tm : 0), 1, t));
+      out.K[i] = Math.sqrt(whiteVar(kResidual, 1, t));
       out.D[i] = Math.sqrt(whiteVar(c.D ** 2, 2, t));
       out.R[i] = spec.states === 3 ? 0 : Math.abs(c.R) * t * t / 2;
       out.B[i] = o.method === 'fudge' ? Math.sqrt(whiteVar(B2 / o.Tm, 1, t))
@@ -127,7 +132,7 @@ export function contributions(spec: DeviceSpec, o: EstimateOptions, times: Float
     } else {
       out.Q[i] = Math.sqrt(c.Q ** 2 * o.dt * t);        // white velocity noise → position RW
       out.N[i] = Math.sqrt(whiteVar(c.N ** 2, 1, t));
-      out.K[i] = Math.sqrt(whiteVar(kEff ** 2 - (o.method === 'fudge' ? B2 / o.Tm : 0), 2, t));
+      out.K[i] = Math.sqrt(whiteVar(kResidual, 2, t));
       out.D[i] = Math.sqrt(whiteVar(c.D ** 2, 3, t));
       out.R[i] = Math.abs(c.R) * t ** 3 / 6;
       out.B[i] = o.method === 'fudge' ? Math.sqrt(whiteVar(B2 / o.Tm, 2, t))

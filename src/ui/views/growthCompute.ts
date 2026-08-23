@@ -2,12 +2,14 @@ import type { DeviceSpec } from '../../engine/bench';
 import { contributions, estimateSigma, timeToRequirement, type ContributionKey, type EstimateMethod, type EstimateOptions } from '../../engine/models';
 import { logTimes } from '../../engine/montecarlo';
 import { effectiveTm, type Requirement, type Scenario } from '../state';
+import type { Domain } from '../../engine/units';
 
-export interface GrowthInputs { spec: DeviceSpec; scenario: Scenario; req: Requirement | null }
+export interface GrowthInputs { spec: DeviceSpec; scenario: Scenario; dom: Domain; req: Requirement | null }
 export interface MethodCurve { method: EstimateMethod; sigma: Float64Array; scaled: Float64Array; atReq: number | null; timeToReq: number | null; contributions: Record<ContributionKey, Float64Array> }
 
 export function growthTimes(i: GrowthInputs): Float64Array {
-  return logTimes(i.scenario.dt, Math.max(i.scenario.duration, i.req?.duration ?? 0));
+  const ds = i.scenario.byDomain[i.dom];
+  return logTimes(ds.dt, Math.max(ds.duration, i.req?.duration ?? 0));
 }
 
 export function valueAt(times: Float64Array, curve: Float64Array, t: number): number | null {
@@ -27,8 +29,9 @@ export function valueAt(times: Float64Array, curve: Float64Array, t: number): nu
 
 export function computeEstimates(i: GrowthInputs, times: Float64Array): MethodCurve[] {
   const sc = i.scenario;
+  const ds = sc.byDomain[i.dom];
   return sc.estimateMethods.map(method => {
-    const o: EstimateOptions = { method, Tm: effectiveTm(sc), fix: sc.fix, driftKnowledge: sc.driftKnowledge, dt: sc.dt, profile: sc.temperature, includeThermal: sc.includeThermal };
+    const o: EstimateOptions = { method, Tm: effectiveTm(sc, i.dom), fix: ds.fix, driftKnowledge: sc.driftKnowledge, dt: ds.dt, profile: sc.temperature, includeThermal: sc.includeThermal };
     const sigma = estimateSigma(i.spec, o, times);
     const k = i.req?.sigma ?? 1;
     const scaled = Float64Array.from(sigma, v => v * k);

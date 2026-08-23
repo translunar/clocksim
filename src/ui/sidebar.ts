@@ -1,7 +1,7 @@
 import { h, numInput, select, controlKey } from './dom';
 import { dfn } from './glossary';
 import type { Store } from './store';
-import { fromPreset, isBenchDevice, uniqueId, type AppState, type BenchDevice, type Requirement, type Scenario } from './state';
+import { activeDomain, fromPreset, isBenchDevice, uniqueId, updateDomain, type AppState, type BenchDevice, type DomainScenario, type Requirement, type Scenario } from './state';
 import { PRESETS } from '../presets';
 import { DATASHEET_UNITS, ERROR_UNIT, type Domain } from '../engine/units';
 import { ESTIMATE_METHODS } from '../engine/models';
@@ -68,9 +68,12 @@ function benchPanel(s: AppState, store: Store): HTMLElement {
 function scenarioPanel(s: AppState, store: Store): HTMLElement {
   const sc = s.scenario;
   const dev = s.bench.find(d => d.id === s.selected);
-  const domain: Domain = dev?.domain ?? 'gyro';
+  const dom = activeDomain(s);
+  const ds = s.scenario.byDomain[dom];
+  const domain: Domain = dom;
   const eu = ERROR_UNIT[domain];
   const set = (fn: (x: Scenario) => void) => store.update(st => { const c = structuredClone(st.scenario); fn(c); return { ...st, scenario: c }; });
+  const setD = (fn: (d: DomainScenario) => void) => store.update(st => updateDomain(st, dom, fn));
   const profile = sc.temperature;
   const profileFields = (): HTMLElement[] => {
     switch (profile.kind) {
@@ -83,14 +86,14 @@ function scenarioPanel(s: AppState, store: Store): HTMLElement {
   const setKind = (k: string) => set(x => { x.temperature = k === 'step' ? { kind: 'step', amplitude: 5, at: 0 } : k === 'ramp' ? { kind: 'ramp', rate: 0.001 } : k === 'sinusoid' ? { kind: 'sinusoid', amplitude: 5, period: 5400 } : { kind: 'none' }; });
   return h('fieldset', {}, h('legend', {}, 'Scenario'),
     h('div', { class: 'row' },
-      numInput('duration', sc.duration, v => set(x => { x.duration = v; }), { unit: 's', min: 1, key: controlKey(['scenario', 'duration']) }),
-      numInput('sample dt', sc.dt, v => set(x => { x.dt = v; }), { unit: 's', min: 1e-4, key: controlKey(['scenario', 'dt']) }),
+      numInput('duration', ds.duration, v => setD(x => { x.duration = v; }), { unit: 's', min: 1, key: controlKey(['scenario', 'duration']) }),
+      numInput('sample dt', ds.dt, v => setD(x => { x.dt = v; }), { unit: 's', min: 1e-4, key: controlKey(['scenario', 'dt']) }),
       numInput('MC runs', sc.runs, v => set(x => { x.runs = Math.max(1, Math.round(v)); }), { min: 1, step: 1, key: controlKey(['scenario', 'runs']) }),
       numInput('seed', sc.seed, v => set(x => { x.seed = Math.round(v); }), { step: 1, key: controlKey(['scenario', 'seed']) })),
     h('div', { class: 'row' },
-      numInput('last-fix 1σ', reqValueFromSI(domain, sc.fix.sigma), v => set(x => { x.fix.sigma = reqValueToSI(domain, v); }), { unit: eu.label, term: 'fix', min: 0, key: controlKey(['scenario', 'fixSigma']) }),
-      numInput('fix cadence Δ', sc.fix.cadence, v => set(x => { x.fix.cadence = v; }), { unit: 's', min: 1e-3, key: controlKey(['scenario', 'fixCadence']) }),
-      numInput('fix bias', reqValueFromSI(domain, sc.fix.bias), v => set(x => { x.fix.bias = reqValueToSI(domain, v); }), { unit: eu.label, term: 'turnOnBias', min: 0, key: controlKey(['scenario', 'fixBias']) })),
+      numInput('last-fix 1σ', reqValueFromSI(domain, ds.fix.sigma), v => setD(x => { x.fix.sigma = reqValueToSI(domain, v); }), { unit: eu.label, term: 'fix', min: 0, key: controlKey(['scenario', 'fixSigma']) }),
+      numInput('fix cadence Δ', ds.fix.cadence, v => setD(x => { x.fix.cadence = v; }), { unit: 's', min: 1e-3, key: controlKey(['scenario', 'fixCadence']) }),
+      numInput('fix bias', reqValueFromSI(domain, ds.fix.bias), v => setD(x => { x.fix.bias = reqValueToSI(domain, v); }), { unit: eu.label, term: 'turnOnBias', min: 0, key: controlKey(['scenario', 'fixBias']) })),
     domain === 'clock' && dev?.states === 3 ? numInput('drift-rate uncertainty', sc.driftKnowledge ? Math.sqrt(sc.driftKnowledge) * 86400 : 0, v => set(x => { x.driftKnowledge = v > 0 ? (v / 86400) ** 2 : null; }), { unit: 'Δf/f per day, 1σ', term: 'driftKnowledge', min: 0, key: controlKey(['scenario', 'driftKnowledge']) }) : null,
     select('Temperature profile', [{ value: 'none', label: 'none' }, { value: 'step', label: 'step' }, { value: 'ramp', label: 'ramp' }, { value: 'sinusoid', label: 'sinusoid (orbital)' }], profile.kind, setKind, { key: controlKey(['scenario', 'tempProfile']) }),
     ...profileFields(),
@@ -104,19 +107,20 @@ function scenarioPanel(s: AppState, store: Store): HTMLElement {
 }
 
 function requirementsPanel(s: AppState, store: Store): HTMLElement {
-  const dev = s.bench.find(d => d.id === s.selected);
-  const domain: Domain = dev?.domain ?? 'gyro';
+  const dom = activeDomain(s);
+  const ds = s.scenario.byDomain[dom];
+  const domain: Domain = dom;
   const eu = ERROR_UNIT[domain];
-  const set = (fn: (x: Scenario) => void) => store.update(st => { const c = structuredClone(st.scenario); fn(c); return { ...st, scenario: c }; });
+  const setD = (fn: (d: DomainScenario) => void) => store.update(st => updateDomain(st, dom, fn));
   const row = (r: Requirement) => h('div', { class: 'row' },
-    h('label', {}, h('input', { type: 'radio', name: 'activeReq', checked: s.scenario.activeRequirement === r.id ? 'checked' : undefined, 'data-key': controlKey(['req', r.id, 'active']), on: { change: () => set(x => { x.activeRequirement = r.id; }) } }), ' active'),
-    numInput('value', reqValueFromSI(domain, r.value), v => set(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.value = reqValueToSI(domain, v); }), { unit: eu.label, min: 0, key: controlKey(['req', r.id, 'value']) }),
-    select('sigma', [{ value: '1', label: '1σ' }, { value: '2', label: '2σ' }, { value: '3', label: '3σ' }], String(r.sigma), v => set(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.sigma = Number(v) as 1 | 2 | 3; }), { key: controlKey(['req', r.id, 'sigma']) }),
-    numInput('duration', r.duration, v => set(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.duration = v; }), { unit: 's', min: 1, key: controlKey(['req', r.id, 'duration']) }),
-    h('button', { 'data-key': controlKey(['req', r.id, 'remove']), on: { click: () => set(x => { x.requirements = x.requirements.filter(y => y.id !== r.id); if (x.activeRequirement === r.id) x.activeRequirement = x.requirements[0]?.id ?? null; }) } }, 'remove'));
+    h('label', {}, h('input', { type: 'radio', name: 'activeReq', checked: ds.activeRequirement === r.id ? 'checked' : undefined, 'data-key': controlKey(['req', r.id, 'active']), on: { change: () => setD(x => { x.activeRequirement = r.id; }) } }), ' active'),
+    numInput('value', reqValueFromSI(domain, r.value), v => setD(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.value = reqValueToSI(domain, v); }), { unit: eu.label, min: 0, key: controlKey(['req', r.id, 'value']) }),
+    select('sigma', [{ value: '1', label: '1σ' }, { value: '2', label: '2σ' }, { value: '3', label: '3σ' }], String(r.sigma), v => setD(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.sigma = Number(v) as 1 | 2 | 3; }), { key: controlKey(['req', r.id, 'sigma']) }),
+    numInput('duration', r.duration, v => setD(x => { const q = x.requirements.find(y => y.id === r.id); if (q) q.duration = v; }), { unit: 's', min: 1, key: controlKey(['req', r.id, 'duration']) }),
+    h('button', { 'data-key': controlKey(['req', r.id, 'remove']), on: { click: () => setD(x => { x.requirements = x.requirements.filter(y => y.id !== r.id); if (x.activeRequirement === r.id) x.activeRequirement = x.requirements[0]?.id ?? null; }) } }, 'remove'));
   return h('fieldset', {}, h('legend', {}, dfn('requirement', 'Requirements')),
-    ...s.scenario.requirements.map(row),
-    h('button', { 'data-key': 'req:add', on: { click: () => set(x => { const id = uniqueId('r' + (x.requirements.length + 1), x.requirements.map(y => y.id)); x.requirements.push({ id, value: reqValueToSI(domain, 1), sigma: 3, duration: 600 }); x.activeRequirement ??= id; }) } }, 'Add requirement'));
+    ...ds.requirements.map(row),
+    h('button', { 'data-key': 'req:add', on: { click: () => setD(x => { const id = uniqueId('r' + (x.requirements.length + 1), x.requirements.map(y => y.id)); x.requirements.push({ id, value: reqValueToSI(domain, 1), sigma: 3, duration: 600 }); x.activeRequirement ??= id; }) } }, 'Add requirement'));
 }
 
 export function mountSidebar(root: HTMLElement, store: Store): void {

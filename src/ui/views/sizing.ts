@@ -15,8 +15,9 @@ export const sizingView: ViewFactory = (root, store) => {
     if (!sel) return;
     if (sel.domain === 'accel') { readout.textContent = 'Steady-state sizing is defined for 2-state devices (gyro, clock) in v1.'; chart.setSeries([]); chart.setData(cadenceGrid(), []); return; }
     const eu = ERROR_UNIT[sel.domain];
-    const req = s.scenario.requirements.find(r => r.id === s.scenario.activeRequirement) ?? null;
-    const curves = computeKnee(s.bench.filter(d => d.domain === sel.domain), s.scenario, req);
+    const ds = s.scenario.byDomain[sel.domain];
+    const req = ds.requirements.find(r => r.id === ds.activeRequirement) ?? null;
+    const curves = computeKnee(s.bench.filter(d => d.domain === sel.domain), s.scenario, sel.domain, req);
     chart.setSeries(curves.map((c, i) => ({ label: c.name, color: PALETTE[i % 8]!, width: c.id === sel.id ? 3 : 1.5 })));
     chart.setData(cadenceGrid(), curves.map(c => Float64Array.from(c.sigma, eu.fromSI)));
     chart.clearLines();

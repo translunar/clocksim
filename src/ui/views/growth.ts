@@ -24,8 +24,9 @@ export const growthView: ViewFactory = (root, store, client) => {
     if (!d) return;
     const spec = benchToSpec(d);
     const eu = ERROR_UNIT[d.domain];
-    const req = s.scenario.requirements.find(r => r.id === s.scenario.activeRequirement) ?? null;
-    const inputs = { spec, scenario: s.scenario, req };
+    const ds = s.scenario.byDomain[d.domain];
+    const req = ds.requirements.find(r => r.id === ds.activeRequirement) ?? null;
+    const inputs = { spec, scenario: s.scenario, dom: d.domain, req };
     const times = growthTimes(inputs);
     const est = computeEstimates(inputs, times);
     const conv = (a: Float64Array) => Float64Array.from(a, eu.fromSI);
@@ -50,7 +51,7 @@ export const growthView: ViewFactory = (root, store, client) => {
         ...est.map(c => h('div', {}, h('span', {}, dfn(c.method), ` at ${req ? fmtTime(req.duration) : '—'}`), h('b', {}, c.atReq === null ? '—' : `${fmtSci(eu.fromSI(c.atReq))} ${eu.label}`), `time to requirement: ${c.timeToReq === null ? 'never within span' : fmtTime(c.timeToReq)}`)),
         h('div', {}, h('span', {}, 'Monte Carlo truth'), h('b', {}, mcS?.atReq == null ? '…' : `${fmtSci(eu.fromSI(mcS.atReq))} ${eu.label}`), `time to requirement: ${mcS?.timeToReq == null ? (mc ? 'never within span' : '…') : fmtTime(mcS.timeToReq)}`),
         ...(mcS?.atReq != null ? est.map(c => h('div', { class: c.atReq && mcS.atReq! / c.atReq > 1.2 ? 'warn' : '' }, h('span', {}, `truth / ${c.method}`), h('b', {}, c.atReq ? (mcS.atReq! / c.atReq).toFixed(2) + '×' : '—'), c.atReq && mcS.atReq! / c.atReq > 1.2 ? 'estimate is optimistic at this duration' : 'estimate is adequate or conservative here')) : []),
-        h('div', {}, h('span', {}, 'T_m in use'), h('b', {}, fmtTime(effectiveTm(s.scenario)))),
+        h('div', {}, h('span', {}, 'T_m in use'), h('b', {}, fmtTime(effectiveTm(s.scenario, d.domain)))),
         h('div', {}, h('span', {}, dfn('thermal', 'thermal (truth only)')), h('b', {}, thermalAtReq == null ? '—' : `${fmtSci(eu.fromSI(thermalAtReq))} ${eu.label}`), 'not included in the analytic estimate above; carried only by the Monte Carlo truth'),
       );
       if (first) {
@@ -60,7 +61,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       }
     };
 
-    const key = JSON.stringify([spec, s.scenario.dt, s.scenario.duration, s.scenario.runs, s.scenario.seed, s.scenario.fix, s.scenario.driftKnowledge, s.scenario.temperature, s.scenario.includeThermal, effectiveTm(s.scenario), req?.duration]);
+    const key = JSON.stringify([spec, ds.dt, ds.duration, s.scenario.runs, s.scenario.seed, ds.fix, s.scenario.driftKnowledge, s.scenario.temperature, s.scenario.includeThermal, effectiveTm(s.scenario, d.domain), req?.duration]);
     if (key !== lastKey) {
       lastKey = key;
       if (pending) { client.cancel(pending); pending = null; }
@@ -70,13 +71,13 @@ export const growthView: ViewFactory = (root, store, client) => {
       // grid point can exceed the raw duration, so echoing that back used to hand the worker a
       // different duration than the one used to build `times`, and its re-derived logTimes grid
       // came out a different length (I5).
-      const mcDuration = Math.max(s.scenario.duration, req?.duration ?? 0);
-      const samples = Math.round(mcDuration / s.scenario.dt);
+      const mcDuration = Math.max(ds.duration, req?.duration ?? 0);
+      const samples = Math.round(mcDuration / ds.dt);
       if (samples > 2_000_000) {
         status.textContent = 'Monte Carlo skipped: duration/dt exceeds 2,000,000 samples — increase dt or shorten duration';
       } else {
         status.textContent = 'running Monte Carlo…';
-        pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: s.scenario.dt, duration: mcDuration, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: s.scenario.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario) } }, m => {
+        pending = client.request({ type: 'mc', id: client.nextId(), batch: 10, req: { spec, dt: ds.dt, duration: mcDuration, runs: s.scenario.runs, seed: s.scenario.seed, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal, fix: ds.fix, driftKnowledge: s.scenario.driftKnowledge, Tm: effectiveTm(s.scenario, d.domain) } }, m => {
           if (m.type === 'mc-progress' || m.type === 'mc-done') { lastMc = m; renderAll(m); status.textContent = m.type === 'mc-done' ? `done: ${m.runs} runs` : `${m.runs} / ${s.scenario.runs} runs`; }
           if (m.type === 'mc-done' || m.type === 'error') { pending = null; if (m.type === 'error') status.textContent = m.message; }
         });

@@ -5,20 +5,24 @@ import { defaultState, benchToSpec } from '../../src/ui/state';
 describe('growthCompute', () => {
   const s = defaultState();
   const spec = benchToSpec(s.bench[0]!);
-  const req = s.scenario.requirements[0]!;
+  const req = s.scenario.byDomain.gyro.requirements[0]!;
   it('times span to the requirement duration', () => {
-    const t = growthTimes({ spec, scenario: { ...s.scenario, duration: 100 }, req });
+    const short = defaultState().scenario; short.byDomain.gyro.duration = 100;
+    const t = growthTimes({ spec, scenario: short, dom: 'gyro', req });
     expect(t[t.length - 1]).toBe(req.duration);
   });
   it('computes one curve per selected method with scaled sigma', () => {
-    const t = growthTimes({ spec, scenario: s.scenario, req });
-    const curves = computeEstimates({ spec, scenario: s.scenario, req }, t);
+    const t = growthTimes({ spec, scenario: s.scenario, dom: 'gyro', req });
+    const curves = computeEstimates({ spec, scenario: s.scenario, dom: 'gyro', req }, t);
     expect(curves.map(c => c.method)).toEqual(s.scenario.estimateMethods);
     for (const c of curves) { expect(c.scaled[5]).toBeCloseTo(c.sigma[5]! * req.sigma, 12); expect(c.atReq).not.toBeNull(); }
   });
   it('fudge is below constant at short durations for a flicker-dominated device', () => {
-    const t = growthTimes({ spec, scenario: s.scenario, req });
-    const [fudge, constant] = computeEstimates({ spec, scenario: { ...s.scenario, estimateMethods: ['fudge', 'constant'], fix: { sigma: 0, cadence: 1, bias: 0 } }, req }, t);
+    const t = growthTimes({ spec, scenario: s.scenario, dom: 'gyro', req });
+    const noFix = defaultState().scenario;
+    noFix.estimateMethods = ['fudge', 'constant'];
+    noFix.byDomain.gyro.fix = { sigma: 0, cadence: 1, bias: 0 };
+    const [fudge, constant] = computeEstimates({ spec, scenario: noFix, dom: 'gyro', req }, t);
     const i = t.findIndex(v => v >= 60);
     expect(fudge!.sigma[i]!).toBeLessThan(constant!.sigma[i]!);
   });

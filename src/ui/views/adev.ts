@@ -23,17 +23,18 @@ export const adevView: ViewFactory = (root, store, client) => {
     const d = s.bench.find(x => x.id === s.selected);
     if (!d) { info.textContent = 'No device selected.'; return; }
     const spec = benchToSpec(d);
-    const n = adevSampleCount(s.scenario.duration, s.scenario.dt);
-    const key = JSON.stringify([spec, n, s.scenario.dt, s.scenario.seed, s.scenario.devKind, s.scenario.temperature, s.scenario.includeThermal]);
+    const ds = s.scenario.byDomain[d.domain];
+    const n = adevSampleCount(ds.duration, ds.dt);
+    const key = JSON.stringify([spec, n, ds.dt, s.scenario.seed, s.scenario.devKind, s.scenario.temperature, s.scenario.includeThermal]);
     if (key === lastKey) return;
     lastKey = key;
     if (pending) client.cancel(pending);
     info.textContent = `simulating ${n} samples…`;
     const units = DATASHEET_UNITS[d.domain];
-    pending = client.request({ type: 'adev', id: client.nextId(), spec, dt: s.scenario.dt, n, seed: s.scenario.seed, kind: s.scenario.devKind, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal }, m => {
+    pending = client.request({ type: 'adev', id: client.nextId(), spec, dt: ds.dt, n, seed: s.scenario.seed, kind: s.scenario.devKind, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal }, m => {
       pending = null;
       if (m.type !== 'adev') { info.textContent = m.type === 'error' ? m.message : ''; return; }
-      const cutoff = n * s.scenario.dt / 10;
+      const cutoff = n * ds.dt / 10;
       const reliable = Float64Array.from(m.dev, (v, i) => (m.tau[i]! <= cutoff ? v : NaN));
       const faded = Float64Array.from(m.dev, (v, i) => (m.tau[i]! > cutoff ? v : NaN));
       const active = TERM_KEYS.filter(k => spec.coefs[k] > 0);

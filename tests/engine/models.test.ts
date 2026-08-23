@@ -41,6 +41,14 @@ describe('estimate methods', () => {
     const cShort = contributions(g, { ...baseOpts, method: 'gm', fix: noFix, Tm: 1 }, t);
     expect(cShort.B[3]! / Math.sqrt(2 * 1e-10 * 1 * 1e4)).toBeCloseTo(1, 3);
   });
+  it('the fudge K residual never goes NaN when K = 0 (binary64 cancellation)', () => {
+    // sqrt(B²/Tm)² can land just above B²/Tm; the difference must clamp to 0, not go negative.
+    const clock = spec({ domain: 'clock', states: 3, coefs: { ...z, N: 3e-10, B: 9.03230217347103e-12 } });
+    const c = contributions(clock, { ...baseOpts, method: 'fudge', Tm: 86400, fix: { sigma: 10e-9, cadence: 1, bias: 0 } }, t);
+    for (let i = 0; i < t.length; i++) expect(c.K[i]).toBe(0);
+    const s = estimateSigma(clock, { ...baseOpts, method: 'fudge', Tm: 86400, fix: { sigma: 10e-9, cadence: 1, bias: 0 } }, t);
+    for (let i = 0; i < t.length; i++) expect(Number.isFinite(s[i]!)).toBe(true);
+  });
   it('fittedK ignores B and uses K', () => {
     const gk = spec({ coefs: { ...z, B: 1e-5, K: 1e-6 } });
     const c = contributions(gk, { ...baseOpts, method: 'fittedK', fix: noFix }, t);

@@ -4,16 +4,22 @@ import type { DeviceSpec } from '../engine/bench';
 import type { FixQuality, EstimateMethod } from '../engine/models';
 import type { TempProfile } from '../engine/thermal';
 import type { DevKind } from '../engine/deviations';
+import type { Domain } from '../engine/units';
 import { PRESETS } from '../presets';
 
 export interface BenchDevice extends Preset { flickerMode: 'exact' | 'gmSum'; gmTaus: number[] }
 export interface Requirement { id: string; value: number; sigma: 1 | 2 | 3; duration: number }
+/** Scenario settings that differ per device domain — a clock's fix quality is nanoseconds, a gyro's is milliradians. */
+export interface DomainScenario {
+  duration: number; dt: number; fix: FixQuality;
+  requirements: Requirement[]; activeRequirement: string | null;
+}
 export interface Scenario {
-  duration: number; dt: number; runs: number; seed: number;
-  fix: FixQuality; driftKnowledge: number | null;
+  runs: number; seed: number;
+  byDomain: Record<Domain, DomainScenario>;
+  driftKnowledge: number | null;
   temperature: TempProfile; includeThermal: boolean;
   Tm: number | 'auto'; estimateMethods: EstimateMethod[];
-  requirements: Requirement[]; activeRequirement: string | null;
   devKind: DevKind;
   compare: { dut: string | null; ref: string | null; osc: string | null; leak: number; floorQ: number };
 }
@@ -43,10 +49,38 @@ export function isBenchDevice(v: unknown): v is BenchDevice {
   return (o.flickerMode === 'exact' || o.flickerMode === 'gmSum') && Array.isArray(o.gmTaus);
 }
 
-export function effectiveTm(s: Scenario): number {
-  if (s.Tm !== 'auto') return s.Tm;
-  const r = s.requirements.find(x => x.id === s.activeRequirement) ?? s.requirements[0];
-  return r ? r.duration : s.duration;
+export function defaultDomainScenarios(): Record<Domain, DomainScenario> {
+  return {
+    gyro:  { duration: 3600,  dt: 0.1, fix: { sigma: 333e-6, cadence: 0.5, bias: 0 },
+             requirements: [{ id: 'g1', value: Math.PI / 180, sigma: 3, duration: 600 }], activeRequirement: 'g1' },
+    accel: { duration: 3600,  dt: 0.1, fix: { sigma: 3, cadence: 1, bias: 0 },
+             requirements: [{ id: 'a1', value: 100, sigma: 3, duration: 600 }], activeRequirement: 'a1' },
+    clock: { duration: 86400, dt: 1,   fix: { sigma: 10e-9, cadence: 1, bias: 0 },
+             requirements: [{ id: 'c1', value: 1e-6, sigma: 3, duration: 86400 }], activeRequirement: 'c1' },
+  };
+}
+
+/** Domain of the selected bench device; 'gyro' when nothing is selected. */
+export function activeDomain(s: AppState): Domain {
+  return s.bench.find(d => d.id === s.selected)?.domain ?? 'gyro';
+}
+export function domScenario(s: AppState): DomainScenario {
+  return s.scenario.byDomain[activeDomain(s)];
+}
+export function activeReq(ds: DomainScenario): Requirement | null {
+  return ds.requirements.find(r => r.id === ds.activeRequirement) ?? null;
+}
+export function updateDomain(s: AppState, dom: Domain, fn: (ds: DomainScenario) => void): AppState {
+  const byDomain = structuredClone(s.scenario.byDomain);
+  fn(byDomain[dom]);
+  return { ...s, scenario: { ...s.scenario, byDomain } };
+}
+
+export function effectiveTm(sc: Scenario, dom: Domain): number {
+  if (sc.Tm !== 'auto') return sc.Tm;
+  const ds = sc.byDomain[dom];
+  const r = ds.requirements.find(x => x.id === ds.activeRequirement) ?? ds.requirements[0];
+  return r ? r.duration : ds.duration;
 }
 
 const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -100,6 +134,18 @@ function sanitizeCompare(raw: unknown, fallback: Scenario['compare']): Scenario[
 const VALID_ESTIMATE_METHODS = new Set<EstimateMethod>(['fudge', 'constant', 'gm', 'fittedK']);
 const VALID_DEV_KINDS = new Set<DevKind>(['adev', 'mdev', 'hdev']);
 
+function sanitizeDomainScenario(raw: unknown, fallback: DomainScenario): DomainScenario {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const duration = isPositive(o.duration) ? o.duration : fallback.duration;
+  const dt = isPositive(o.dt) ? o.dt : fallback.dt;
+  const fix = sanitizeFix(o.fix, fallback.fix);
+  const requirements = sanitizeRequirements(o.requirements, fallback.requirements);
+  const activeRequirement =
+    typeof o.activeRequirement === 'string' && requirements.some(r => r.id === o.activeRequirement)
+      ? o.activeRequirement : (requirements[0]?.id ?? null);
+  return { duration, dt, fix, requirements, activeRequirement };
+}
+
 /**
  * Rebuilds a Scenario from untrusted input (e.g. a URL hash), starting from `defaults` and
  * copying only well-formed fields; anything malformed keeps the corresponding default. Never
@@ -108,12 +154,16 @@ const VALID_DEV_KINDS = new Set<DevKind>(['adev', 'mdev', 'hdev']);
 export function sanitizeScenario(raw: unknown, defaults: Scenario): Scenario {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
 
-  const duration = isPositive(o.duration) ? o.duration : defaults.duration;
-  const dt = isPositive(o.dt) ? o.dt : defaults.dt;
   const runs = isPositive(o.runs) && Number.isInteger(o.runs) ? o.runs : defaults.runs;
   const seed = isFiniteNum(o.seed) ? o.seed : defaults.seed;
 
-  const fix = sanitizeFix(o.fix, defaults.fix);
+  const rawBy = o.byDomain && typeof o.byDomain === 'object' ? (o.byDomain as Record<string, unknown>) : {};
+  const byDomain = {
+    gyro: sanitizeDomainScenario(rawBy.gyro, defaults.byDomain.gyro),
+    accel: sanitizeDomainScenario(rawBy.accel, defaults.byDomain.accel),
+    clock: sanitizeDomainScenario(rawBy.clock, defaults.byDomain.clock),
+  };
+
   const driftKnowledge = o.driftKnowledge === null ? null : isNonNegative(o.driftKnowledge) ? o.driftKnowledge : defaults.driftKnowledge;
   const temperature = sanitizeTemperature(o.temperature, defaults.temperature);
   const includeThermal = typeof o.includeThermal === 'boolean' ? o.includeThermal : defaults.includeThermal;
@@ -124,16 +174,10 @@ export function sanitizeScenario(raw: unknown, defaults: Scenario): Scenario {
     : [];
   const estimateMethods = filteredMethods.length > 0 ? filteredMethods : defaults.estimateMethods;
 
-  const requirements = sanitizeRequirements(o.requirements, defaults.requirements);
-  const activeRequirement =
-    typeof o.activeRequirement === 'string' && requirements.some(r => r.id === o.activeRequirement)
-      ? o.activeRequirement
-      : (requirements[0]?.id ?? null);
-
   const devKind = VALID_DEV_KINDS.has(o.devKind as DevKind) ? (o.devKind as DevKind) : defaults.devKind;
   const compare = sanitizeCompare(o.compare, defaults.compare);
 
-  return { duration, dt, runs, seed, fix, driftKnowledge, temperature, includeThermal, Tm, estimateMethods, requirements, activeRequirement, devKind, compare };
+  return { runs, seed, byDomain, driftKnowledge, temperature, includeThermal, Tm, estimateMethods, devKind, compare };
 }
 
 export function defaultState(): AppState {
@@ -142,11 +186,11 @@ export function defaultState(): AppState {
     bench: [pick('lsm6dsl-gyro'), pick('csac'), pick('ocxo')],
     selected: 'lsm6dsl-gyro',
     scenario: {
-      duration: 3600, dt: 0.1, runs: 200, seed: 1,
-      fix: { sigma: 333e-6, cadence: 0.5, bias: 0 }, driftKnowledge: null,
+      runs: 200, seed: 1,
+      byDomain: defaultDomainScenarios(),
+      driftKnowledge: null,
       temperature: { kind: 'none' }, includeThermal: true,
-      Tm: 'auto', estimateMethods: ['fudge', 'constant', 'gm'],
-      requirements: [{ id: 'r1', value: Math.PI / 180, sigma: 3, duration: 600 }], activeRequirement: 'r1',
+      Tm: 'auto', estimateMethods: ['fudge', 'constant'],
       devKind: 'adev',
       compare: { dut: 'csac', ref: 'ocxo', osc: 'ocxo', leak: 0, floorQ: 1e-12 },
     },
