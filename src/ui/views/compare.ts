@@ -5,14 +5,16 @@ import { activeReq, benchToSpec, effectiveTm, updateDomain, type AppState, type 
 import { crossover, estimateSigma, timeToRequirement } from '../../engine/models';
 import { logTimes } from '../../engine/montecarlo';
 import { ERROR_UNIT } from '../../engine/units';
+import { PRESETS } from '../../presets';
 import type { WorkerResponse } from '../../worker/protocol';
-import { adevSampleCount } from './adev';
+import { adevSampleCount, sampleCapNote } from './adev';
 import type { ViewFactory } from './types';
 
 type CompareResponse = Extract<WorkerResponse, { type: 'compare' }>;
 
 export const compareView: ViewFactory = (root, store, client) => {
-  const controls = h('div', { class: 'row' }), simRow = h('div', {}), chartEl = h('div', { class: 'chart' }), readout = h('div', { class: 'readout' });
+  const controls = h('div', { class: 'row' }), benchNote = h('div', {}), simRow = h('div', {}), chartEl = h('div', { class: 'chart' }), readout = h('div', { class: 'readout' });
+  const clockPresets = PRESETS.filter(p => p.domain === 'clock').length;
   root.replaceChildren(
     h('p', {},
       'To compare two good clocks you need a measurement quieter than both. ',
@@ -24,7 +26,7 @@ export const compareView: ViewFactory = (root, store, client) => {
       'Every curve here is simulated, so all of them are solid; the shaded band is the ', dfn('confidence', '68% confidence'), ' of the measured curve.'),
     h('p', { class: 'inferred' },
       'This tab always uses the clock scenario and the clock requirement — the span, dt, seed and requirement of the clock domain — no matter which device the context strip has selected.'),
-    controls, simRow, chartEl, readout);
+    controls, benchNote, simRow, chartEl, readout);
   const chart = new LogLogChart(chartEl, { xLabel: 'τ (s)', yLabel: 'σy(τ)' });
   let pending: string | null = null, lastKey = '', lastM: CompareResponse | null = null;
 
@@ -44,7 +46,7 @@ export const compareView: ViewFactory = (root, store, client) => {
       const times = logTimes(cs.dt, Math.max(cs.duration, req.duration));
       const sig = estimateSigma(benchToSpec(dut), { method: 'constant', Tm: effectiveTm(s.scenario, 'clock'), fix: cs.fix, driftKnowledge: s.scenario.driftKnowledge, dt: cs.dt, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal }, times);
       const t = timeToRequirement(times, Float64Array.from(sig, v => v * req.sigma), req.value);
-      holdover = t === null ? 'beyond span' : fmtTime(t);
+      holdover = t === null ? 'holds requirement for the whole span' : fmtTime(t);
     }
     readout.replaceChildren(
       h('div', {}, h('span', {}, dfn('crossover')), h('b', {}, x ? fmtTime(x) : 'none in range')),
@@ -74,12 +76,19 @@ export const compareView: ViewFactory = (root, store, client) => {
       numInput('leak ε', cmp.leak, v => set(c => { c.leak = v; }), { min: 0, term: 'leak', key: controlKey(['dmtd', 'leak']) }),
       numInput('floor', cmp.floorQ * 1e12, v => set(c => { c.floorQ = v * 1e-12; }), { min: 0, unit: 'ps', term: 'floor', key: controlKey(['dmtd', 'floor']) }),
     );
+    // The three pickers list bench clocks only, which looks like the whole catalogue until you
+    // notice it is not. Point at the Devices tab while there are still presets left to add.
+    benchNote.replaceChildren(...(clocks.length < clockPresets
+      ? [h('div', { class: 'inferred' }, 'showing clocks on your bench — add more on the Devices tab')]
+      : []));
     const cs = s.scenario.byDomain.clock;
+    const capNote = sampleCapNote(cs.duration, cs.dt);
     simRow.replaceChildren(expander('dmtd:sim', `sim: span ${cs.duration} s · dt ${cs.dt} s · seed ${s.scenario.seed}`,
       h('div', { class: 'row' },
         numInput('span', cs.duration, v => store.update(st => updateDomain(st, 'clock', x => { x.duration = v; })), { unit: 's', min: 1, key: controlKey(['dmtd', 'span']) }),
         numInput('dt', cs.dt, v => store.update(st => updateDomain(st, 'clock', x => { x.dt = v; })), { unit: 's', min: 1e-3, key: controlKey(['dmtd', 'dt']) }),
-        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['dmtd', 'seed']) }))));
+        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['dmtd', 'seed']) }))),
+      ...(capNote ? [capNote] : []));
     if (activeKey) root.querySelector<HTMLElement>(`[data-key="${activeKey}"]`)?.focus();
     if (clocks.length < 2) { readout.textContent = 'Add at least two clocks to the bench.'; return; }
     const dut = clocks.find(d => d.id === cmp.dut) ?? clocks[0]!, ref = clocks.find(d => d.id === cmp.ref) ?? clocks[1]!, osc = clocks.find(d => d.id === cmp.osc) ?? ref;

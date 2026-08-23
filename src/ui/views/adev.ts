@@ -1,12 +1,24 @@
 import { h, numInput, expander, segmented, controlKey } from '../dom';
 import { dfn } from '../glossary';
-import { LogLogChart, PALETTE, fmtSci } from '../charts';
+import { LogLogChart, PALETTE, fmtSci, fmtTime } from '../charts';
 import { benchToSpec, updateDomain, type AppState } from '../state';
 import { DATASHEET_UNITS } from '../../engine/units';
 import type { Coefs, DevKind } from '../../engine/deviations';
 import type { ViewFactory } from './types';
 
-export const adevSampleCount = (duration: number, dt: number) => Math.min(1 << 18, Math.max(1024, Math.round(duration / dt)));
+export const SAMPLE_CAP = 1 << 18;
+
+export const adevSampleCount = (duration: number, dt: number) => Math.min(SAMPLE_CAP, Math.max(1024, Math.round(duration / dt)));
+
+/**
+ * The sample cap silently shortens the record: ask for more than SAMPLE_CAP samples and the
+ * simulation covers only SAMPLE_CAP·dt seconds, so raising the span past that point changes
+ * nothing and the control feels dead. Returns the line that says so, or null when the span fits.
+ */
+export const sampleCapNote = (duration: number, dt: number): HTMLElement | null =>
+  Math.round(duration / dt) > SAMPLE_CAP
+    ? h('div', { class: 'warn' }, `span capped at ${fmtTime(SAMPLE_CAP * dt)} by the ${SAMPLE_CAP.toLocaleString('en-US')}-sample limit — increase dt to extend`)
+    : null;
 
 const TERM_KEYS: (keyof Coefs)[] = ['Q', 'F', 'N', 'B', 'K', 'D', 'R'];
 const ASYMPTOTE_FORMULA: Record<keyof Coefs, string> = { Q: '(√3·Q/τ)', F: '(≈F/τ)', N: '(N/√τ)', B: '(0.664·B)', K: '(K·√(τ/3))', D: '(none)', R: '(R·τ/√2)' };
@@ -38,11 +50,13 @@ export const adevView: ViewFactory = (root, store, client) => {
       segmented([{ value: 'adev', label: 'ADEV' }, { value: 'mdev', label: 'MDEV' }, { value: 'hdev', label: 'HDEV' }],
         s.scenario.devKind, v => store.update(st => ({ ...st, scenario: { ...st.scenario, devKind: v as DevKind } })), { key: 'adev:devkind' }),
       ' ', dfn('MDEV', 'why MDEV?'), ' · ', dfn('HDEV', 'why HDEV?'));
+    const capNote = sampleCapNote(ds.duration, ds.dt);
     simRow.replaceChildren(expander('adev:sim', `sim: span ${ds.duration} s · dt ${ds.dt} s · seed ${s.scenario.seed}`,
       h('div', { class: 'row' },
         numInput('span', ds.duration, v => store.update(st => updateDomain(st, d.domain, x => { x.duration = v; })), { unit: 's', min: 1, key: controlKey(['adev', 'span']) }),
         numInput('dt', ds.dt, v => store.update(st => updateDomain(st, d.domain, x => { x.dt = v; })), { unit: 's', min: 1e-4, key: controlKey(['adev', 'dt']) }),
-        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['adev', 'seed']) }))));
+        numInput('seed', s.scenario.seed, v => store.update(st => ({ ...st, scenario: { ...st.scenario, seed: v } })), { key: controlKey(['adev', 'seed']) }))),
+      ...(capNote ? [capNote] : []));
     if (activeKey) root.querySelector<HTMLElement>(`[data-key="${activeKey}"]`)?.focus();
     const spec = benchToSpec(d);
     const n = adevSampleCount(ds.duration, ds.dt);
