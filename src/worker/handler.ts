@@ -24,7 +24,8 @@ export async function handleRequest(msg: WorkerRequest, post: (m: WorkerResponse
       const ms = logSpacedM(xd.length);
       const d = (x: Float64Array) => deviation(msg.kind, x, msg.dt, ms);
       const rd = d(xd);
-      post({ type: 'compare', id: msg.id, tau: rd.tau, dut: rd.dev, ref: d(xr).dev, osc: d(xo).dev, measured: d(xm).dev });
+      const rm = d(xm); // measured curve alone carries confidence bounds (spec §9.10)
+      post({ type: 'compare', id: msg.id, tau: rd.tau, dut: rd.dev, ref: d(xr).dev, osc: d(xo).dev, measured: rm.dev, lo: rm.lo, hi: rm.hi });
     } else if (msg.type === 'mc') {
       const times = logTimes(msg.req.dt, msg.req.duration);
       const env = new Envelope(times);

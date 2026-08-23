@@ -13,7 +13,10 @@ export type WorkerRequest =
 
 export type WorkerResponse =
   | { type: 'adev'; id: string; tau: Float64Array; dev: Float64Array; lo: Float64Array; hi: Float64Array; analytic: Record<keyof Coefs, Float64Array>; analyticTotal: Float64Array }
-  | { type: 'compare'; id: string; tau: Float64Array; dut: Float64Array; ref: Float64Array; osc: Float64Array; measured: Float64Array }
+  // `lo`/`hi` are the 68% confidence bounds of the MEASURED curve only (spec §9.10): the DMTD tab
+  // draws them as a band so single-realization scatter is visible rather than mistaken for signal.
+  // The three device curves keep shipping the deviation alone.
+  | { type: 'compare'; id: string; tau: Float64Array; dut: Float64Array; ref: Float64Array; osc: Float64Array; measured: Float64Array; lo: Float64Array; hi: Float64Array }
   | { type: 'mc-progress'; id: string; runs: number; times: Float64Array; p50: Float64Array; p68: Float64Array; p95: Float64Array; p997: Float64Array; sample: Float64Array[] }
   | { type: 'mc-done'; id: string; runs: number; times: Float64Array; p50: Float64Array; p68: Float64Array; p95: Float64Array; p997: Float64Array; sample: Float64Array[] }
   | { type: 'error'; id: string; message: string };
