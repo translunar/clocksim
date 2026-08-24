@@ -62,6 +62,23 @@ describe('store', () => {
     expect(back).not.toBeNull();
     expect(back!.selected).toBe(s.bench[0]!.id);
   });
+  it('round-trips compareBy and compareMethod through the hash', () => {
+    const s = defaultState();
+    s.scenario.compareBy = 'thermal'; s.scenario.compareMethod = 'fudge';
+    const back = fromHash(toHash(s));
+    expect(back!.scenario.compareBy).toBe('thermal');
+    expect(back!.scenario.compareMethod).toBe('fudge');
+  });
+  it('sanitizes bogus compareBy and compareMethod to defaults', () => {
+    const s = defaultState();
+    const raw = JSON.parse(atob(toHash(s).replace(/-/g, '+').replace(/_/g, '/'))) as { scenario: Record<string, unknown> };
+    raw.scenario.compareBy = 'bogus';
+    raw.scenario.compareMethod = 'nope';
+    const h = btoa(JSON.stringify(raw)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const back = fromHash(h);
+    expect(back!.scenario.compareBy).toBe('strategy');
+    expect(back!.scenario.compareMethod).toBe('constant');
+  });
 });
 
 describe('per-domain scenario (spec §9.5)', () => {

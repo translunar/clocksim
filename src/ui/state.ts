@@ -21,9 +21,12 @@ export interface Scenario {
   temperature: TempProfile; includeThermal: boolean;
   Tm: number | 'auto'; estimateMethods: EstimateMethod[];
   devKind: DevKind;
+  compareBy: CompareBy; compareMethod: EstimateMethod;
   compare: { dut: string | null; ref: string | null; osc: string | null; leak: number; floorQ: number };
 }
 export type View = 'guide' | 'devices' | 'adev' | 'growth' | 'sizing' | 'compare';
+/** Which single dimension the Error-growth chart varies (spec §10.1). */
+export type CompareBy = 'strategy' | 'device' | 'thermal';
 export interface AppState { bench: BenchDevice[]; selected: string | null; scenario: Scenario; view: View }
 
 /** Returns `base` if unused among `existing`, else the first `base-2`, `base-3`, … that is free. */
@@ -133,6 +136,7 @@ function sanitizeCompare(raw: unknown, fallback: Scenario['compare']): Scenario[
 
 const VALID_ESTIMATE_METHODS = new Set<EstimateMethod>(['fudge', 'constant', 'gm', 'fittedK']);
 const VALID_DEV_KINDS = new Set<DevKind>(['adev', 'mdev', 'hdev']);
+const VALID_COMPARE_BY = new Set<CompareBy>(['strategy', 'device', 'thermal']);
 
 function sanitizeDomainScenario(raw: unknown, fallback: DomainScenario): DomainScenario {
   const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -175,9 +179,11 @@ export function sanitizeScenario(raw: unknown, defaults: Scenario): Scenario {
   const estimateMethods = filteredMethods.length > 0 ? filteredMethods : defaults.estimateMethods;
 
   const devKind = VALID_DEV_KINDS.has(o.devKind as DevKind) ? (o.devKind as DevKind) : defaults.devKind;
+  const compareBy = VALID_COMPARE_BY.has(o.compareBy as CompareBy) ? (o.compareBy as CompareBy) : defaults.compareBy;
+  const compareMethod = VALID_ESTIMATE_METHODS.has(o.compareMethod as EstimateMethod) ? (o.compareMethod as EstimateMethod) : defaults.compareMethod;
   const compare = sanitizeCompare(o.compare, defaults.compare);
 
-  return { runs, seed, byDomain, driftKnowledge, temperature, includeThermal, Tm, estimateMethods, devKind, compare };
+  return { runs, seed, byDomain, driftKnowledge, temperature, includeThermal, Tm, estimateMethods, devKind, compareBy, compareMethod, compare };
 }
 
 export function defaultState(): AppState {
@@ -192,6 +198,7 @@ export function defaultState(): AppState {
       temperature: { kind: 'none' }, includeThermal: true,
       Tm: 'auto', estimateMethods: ['fudge', 'constant'],
       devKind: 'adev',
+      compareBy: 'strategy', compareMethod: 'constant',
       compare: { dut: 'csac', ref: 'ocxo', osc: 'ocxo', leak: 0, floorQ: 1e-12 },
     },
     view: 'adev',
