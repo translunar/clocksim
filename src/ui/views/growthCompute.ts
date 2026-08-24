@@ -11,7 +11,7 @@ export interface MethodCurve { method: EstimateMethod; sigma: Float64Array; scal
 export const NO_THERMAL = { profile: { kind: 'none' } as const, includeThermal: false as const };
 
 /** Sustained temperature-offset levels of the §10.4 family. ΔT = 0 is the envelope itself. */
-export const DELTA_T_LEVELS = [0.1, 1, 10];
+export const DELTA_T_LEVELS = [0.1, 1, 10] as const;
 
 export function growthTimes(i: GrowthInputs): Float64Array {
   const ds = i.scenario.byDomain[i.dom];

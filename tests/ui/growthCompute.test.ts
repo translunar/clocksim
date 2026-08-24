@@ -53,6 +53,11 @@ describe('compare-by compute (spec §10)', () => {
     expect(flowdown(t, Float64Array.from([1, 5, 9]), 0.01, req)!).toBeLessThanOrEqual(0);
     expect(flowdown(t, Float64Array.from([1, 2, 3]), 0, req)).toBeNull();
   });
+  it('the family curve at ΔT = flowdown meets the requirement exactly at t_req', () => {
+    const env = Float64Array.from([1, 2, 3]);
+    const dT = flowdown(t, env, 0.01, req)!;
+    expect(env[1]! + 0.01 * dT * req.duration).toBeCloseTo(req.value, 12);
+  });
   it('computeDeviceCurves: one kσ curve per device under the single compareMethod', () => {
     const s2 = defaultState();
     const gyros = s2.bench.filter(d => d.domain === 'gyro');

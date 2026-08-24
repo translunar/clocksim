@@ -89,7 +89,8 @@ export const growthView: ViewFactory = (root, store, client) => {
       readout.replaceChildren(...curves.map(c => h('div', {},
         h('span', {}, `${c.name} at ${req ? fmtTime(req.duration) : '—'}`),
         h('b', {}, c.atReq === null ? '—' : `${fmtSci(eu.fromSI(c.atReq))} ${eu.label}`),
-        `time to requirement: ${c.timeToReq === null ? 'never within span' : fmtTime(c.timeToReq)}`)));
+        `time to requirement: ${c.timeToReq === null ? 'never within span' : fmtTime(c.timeToReq)}`)),
+        h('div', {}, h('span', {}, 'T_m in use'), h('b', {}, fmtTime(effectiveTm(sc, d.domain)))));
       return;
     }
 
@@ -121,11 +122,12 @@ export const growthView: ViewFactory = (root, store, client) => {
                 if (dT === null) return h('div', {}, flowLabel, h('b', {}, '—'), 'the requirement duration lies outside the simulated time grid');
                 return dT <= 0
                   ? h('div', { class: 'warn' }, flowLabel, h('b', {}, 'requirement not met even at ΔT = 0'), 'the noise alone breaks the requirement — thermal control cannot save it')
-                  : h('div', {}, flowLabel, h('b', {}, `hold sustained |ΔT| below ${Number(dT.toPrecision(2))} K`), 'quote it to the thermal team with margin');
+                  : h('div', {}, flowLabel, h('b', {}, `hold sustained |ΔT| below ${dT >= 1000 ? fmtSci(dT) : Number(dT.toPrecision(2))} K`), 'quote it to the thermal team with margin');
               })();
       readout.replaceChildren(
         flowRow,
         h('div', {}, h('span', {}, `ΔT = 0 envelope at ${req ? fmtTime(req.duration) : '—'}`), h('b', {}, envAtReq == null ? (mc ? '—' : '…') : `${fmtSci(eu.fromSI(envAtReq))} ${eu.label}`)),
+        h('div', {}, h('span', {}, 'T_m in use'), h('b', {}, fmtTime(effectiveTm(sc, d.domain)))),
       );
       return;
     }
@@ -196,11 +198,14 @@ export const growthView: ViewFactory = (root, store, client) => {
         ? [numInput('drift-rate uncertainty', sc.driftKnowledge ? Math.sqrt(sc.driftKnowledge) * 86400 : 0, v => set(x => { x.driftKnowledge = v > 0 ? (v / 86400) ** 2 : null; }), { unit: 'Δf/f per day, 1σ', term: 'driftKnowledge', min: 0, key: controlKey(['growth', 'driftknowledge']) }),
            ...(sc.driftKnowledge ? [] : [h('p', { class: 'inferred' }, '0 = aging assumed perfectly calibrated — optimistic beyond a few days; over months this term usually dominates.')])]
         : []),
+      // T_m drives device mode (every computeDeviceCurves option set) and thermal mode (the MC
+      // request, hence the ΔT = 0 envelope and the flowdown), not just strategy — so it renders
+      // as its own control in all three modes rather than living inside the strategy-only expander.
+      h('label', {}, dfn('Tm', 'model timescale T_m'), h('input', { value: sc.Tm === 'auto' ? 'auto' : String(sc.Tm), 'data-key': controlKey(['growth', 'tm']), on: { change: e => { const v = (e.target as HTMLInputElement).value.trim(); set(x => { x.Tm = v === 'auto' ? 'auto' : Math.max(1e-3, Number(v) || 1); }); } } })),
       ...(mode === 'strategy'
         ? [expander('growth:methods', `more methods (active: ${sc.estimateMethods.map(m => METHOD_LABEL[m]).join(' + ')})`,
             h('div', {}, ...ESTIMATE_METHODS.map(m => h('label', { style: 'display:inline-block;margin-right:10px' },
-              h('input', { type: 'checkbox', checked: sc.estimateMethods.includes(m) ? 'checked' : undefined, 'data-key': controlKey(['growth', 'method', m]), on: { change: e => set(x => { const on = (e.target as HTMLInputElement).checked; x.estimateMethods = on ? [...new Set([...x.estimateMethods, m])] : x.estimateMethods.filter(kk => kk !== m); }) } }), ' ', dfn(m, METHOD_LABEL[m])))),
-            h('label', {}, dfn('Tm', 'model timescale T_m'), h('input', { value: sc.Tm === 'auto' ? 'auto' : String(sc.Tm), 'data-key': controlKey(['growth', 'tm']), on: { change: e => { const v = (e.target as HTMLInputElement).value.trim(); set(x => { x.Tm = v === 'auto' ? 'auto' : Math.max(1e-3, Number(v) || 1); }); } } })))]
+              h('input', { type: 'checkbox', checked: sc.estimateMethods.includes(m) ? 'checked' : undefined, 'data-key': controlKey(['growth', 'method', m]), on: { change: e => set(x => { const on = (e.target as HTMLInputElement).checked; x.estimateMethods = on ? [...new Set([...x.estimateMethods, m])] : x.estimateMethods.filter(kk => kk !== m); }) } }), ' ', dfn(m, METHOD_LABEL[m])))))]
         : []),
     );
     simRow.replaceChildren(expander('growth:sim', `sim: ${sc.runs} runs · span ${ds.duration} s · dt ${ds.dt} s · seed ${sc.seed}`,

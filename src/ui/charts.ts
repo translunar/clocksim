@@ -94,7 +94,13 @@ export class LogLogChart {
         { label: this.opts.yLabel, values: (_u, v) => v.map(fmtSci), size: 80, stroke: '#8a7fa8', grid: { stroke: '#2a2040' }, ticks: { stroke: '#2a2040' } },
       ],
       series: [{ label: 't' }, ...this.defs.map(d => ({ label: d.label, stroke: d.color, width: d.width ?? 2, dash: d.dash, fill: undefined /* band series get their lo→hi fill from the `bands` option; a per-series fill paints to the axis */, points: { show: false } }))],
-      bands: this.bands.map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
+      // Defensive, mirroring the data/defs re-alignment above: setSeries and setBands rebuild
+      // independently, so a defs change can momentarily pair the new series list with the old
+      // band indices — and uPlot does not bounds-check band edges (it dereferences
+      // series[b.series[1]] unconditionally). Drop any band that points past the series list.
+      bands: this.bands
+        .filter(([a, b]) => a <= this.defs.length && b <= this.defs.length)
+        .map(([a, b]) => ({ series: [a, b], fill: (this.defs[a - 1]?.color ?? '#888') + '22' })),
       legend: { live: true },
       hooks: {
         // A drag-select with width is uPlot's zoom gesture. Its own dblclick handler undoes it,
