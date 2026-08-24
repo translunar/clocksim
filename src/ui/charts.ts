@@ -22,6 +22,13 @@ export class LogLogChart {
   private userZoomed = false;
   hasUserZoom(): boolean { return this.userZoomed; }
 
+  /** Update the y-axis label (e.g. when the active domain's unit changes). Rebuilds only on change. */
+  setYLabel(label: string): void {
+    if (label === this.opts.yLabel) return;
+    this.opts.yLabel = label;
+    if (this.plot) this.rebuild();
+  }
+
   constructor(private el: HTMLElement, private opts: { xLabel: string; yLabel: string; title?: string }) {
     this.ro = new ResizeObserver(() => this.plot?.setSize(this.size()));
     this.ro.observe(el);

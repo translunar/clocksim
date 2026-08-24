@@ -26,6 +26,8 @@ export const sizingView: ViewFactory = (root, store) => {
     const ds = s.scenario.byDomain[sel.domain];
     // Same display unit as the context strip and the readouts (deg / ns), not raw SI.
     const eu = ERROR_UNIT[sel.domain];
+    // The chart serves both domains, so the axis label carries the active domain's unit.
+    chart.setYLabel(`steady-state 1σ error (${eu.label})`);
     // Rebuilding the control row destroys the element being typed in; capture the focused
     // control by its stable data-key and restore it afterwards (same pattern as growth.ts).
     const activeKey = document.activeElement?.getAttribute('data-key') ?? null;
