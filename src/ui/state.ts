@@ -2,7 +2,6 @@ import type { Preset } from '../engine/presets';
 import { specFromDatasheet, validatePreset } from '../engine/presets';
 import type { DeviceSpec } from '../engine/bench';
 import type { FixQuality, EstimateMethod } from '../engine/models';
-import type { TempProfile } from '../engine/thermal';
 import type { DevKind } from '../engine/deviations';
 import type { Domain } from '../engine/units';
 import { PRESETS } from '../presets';
@@ -18,7 +17,6 @@ export interface Scenario {
   runs: number; seed: number;
   byDomain: Record<Domain, DomainScenario>;
   driftKnowledge: number | null;
-  temperature: TempProfile; includeThermal: boolean;
   Tm: number | 'auto'; estimateMethods: EstimateMethod[];
   devKind: DevKind;
   compareBy: CompareBy; compareMethod: EstimateMethod;
@@ -90,18 +88,6 @@ const isFiniteNum = (v: unknown): v is number => typeof v === 'number' && Number
 const isPositive = (v: unknown): v is number => isFiniteNum(v) && v > 0;
 const isNonNegative = (v: unknown): v is number => isFiniteNum(v) && v >= 0;
 
-function sanitizeTemperature(raw: unknown, fallback: TempProfile): TempProfile {
-  if (!raw || typeof raw !== 'object') return fallback;
-  const o = raw as Record<string, unknown>;
-  switch (o.kind) {
-    case 'none': return { kind: 'none' };
-    case 'step': return isFiniteNum(o.amplitude) && isFiniteNum(o.at) ? { kind: 'step', amplitude: o.amplitude, at: o.at } : fallback;
-    case 'ramp': return isFiniteNum(o.rate) ? { kind: 'ramp', rate: o.rate } : fallback;
-    case 'sinusoid': return isFiniteNum(o.amplitude) && isFiniteNum(o.period) ? { kind: 'sinusoid', amplitude: o.amplitude, period: o.period } : fallback;
-    default: return fallback;
-  }
-}
-
 function sanitizeFix(raw: unknown, fallback: FixQuality): FixQuality {
   if (!raw || typeof raw !== 'object') return fallback;
   const o = raw as Record<string, unknown>;
@@ -169,8 +155,6 @@ export function sanitizeScenario(raw: unknown, defaults: Scenario): Scenario {
   };
 
   const driftKnowledge = o.driftKnowledge === null ? null : isNonNegative(o.driftKnowledge) ? o.driftKnowledge : defaults.driftKnowledge;
-  const temperature = sanitizeTemperature(o.temperature, defaults.temperature);
-  const includeThermal = typeof o.includeThermal === 'boolean' ? o.includeThermal : defaults.includeThermal;
   const Tm = o.Tm === 'auto' ? 'auto' : isPositive(o.Tm) ? o.Tm : defaults.Tm;
 
   const filteredMethods = Array.isArray(o.estimateMethods)
@@ -183,7 +167,7 @@ export function sanitizeScenario(raw: unknown, defaults: Scenario): Scenario {
   const compareMethod = VALID_ESTIMATE_METHODS.has(o.compareMethod as EstimateMethod) ? (o.compareMethod as EstimateMethod) : defaults.compareMethod;
   const compare = sanitizeCompare(o.compare, defaults.compare);
 
-  return { runs, seed, byDomain, driftKnowledge, temperature, includeThermal, Tm, estimateMethods, devKind, compareBy, compareMethod, compare };
+  return { runs, seed, byDomain, driftKnowledge, Tm, estimateMethods, devKind, compareBy, compareMethod, compare };
 }
 
 export function defaultState(): AppState {
@@ -195,7 +179,6 @@ export function defaultState(): AppState {
       runs: 200, seed: 1,
       byDomain: defaultDomainScenarios(),
       driftKnowledge: null,
-      temperature: { kind: 'none' }, includeThermal: true,
       Tm: 'auto', estimateMethods: ['fudge', 'constant'],
       devKind: 'adev',
       compareBy: 'strategy', compareMethod: 'constant',

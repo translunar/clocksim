@@ -4,6 +4,7 @@ import { LogLogChart, PALETTE, fmtSci, fmtTime } from '../charts';
 import { benchToSpec, updateDomain, type AppState } from '../state';
 import { DATASHEET_UNITS } from '../../engine/units';
 import type { Coefs, DevKind } from '../../engine/deviations';
+import { NO_THERMAL } from './growthCompute';
 import type { ViewFactory } from './types';
 
 export const SAMPLE_CAP = 1 << 18;
@@ -60,13 +61,13 @@ export const adevView: ViewFactory = (root, store, client) => {
     if (activeKey) root.querySelector<HTMLElement>(`[data-key="${activeKey}"]`)?.focus();
     const spec = benchToSpec(d);
     const n = adevSampleCount(ds.duration, ds.dt);
-    const key = JSON.stringify([spec, n, ds.dt, s.scenario.seed, s.scenario.devKind, s.scenario.temperature, s.scenario.includeThermal]);
+    const key = JSON.stringify([spec, n, ds.dt, s.scenario.seed, s.scenario.devKind]);
     if (key === lastKey) return;
     lastKey = key;
     if (pending) client.cancel(pending);
     info.textContent = `simulating ${n} samples…`;
     const units = DATASHEET_UNITS[d.domain];
-    pending = client.request({ type: 'adev', id: client.nextId(), spec, dt: ds.dt, n, seed: s.scenario.seed, kind: s.scenario.devKind, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal }, m => {
+    pending = client.request({ type: 'adev', id: client.nextId(), spec, dt: ds.dt, n, seed: s.scenario.seed, kind: s.scenario.devKind, ...NO_THERMAL }, m => {
       pending = null;
       if (m.type !== 'adev') { info.textContent = m.type === 'error' ? m.message : ''; return; }
       const cutoff = n * ds.dt / 10;

@@ -8,6 +8,7 @@ import { ERROR_UNIT } from '../../engine/units';
 import { PRESETS } from '../../presets';
 import type { WorkerResponse } from '../../worker/protocol';
 import { adevSampleCount, sampleCapNote } from './adev';
+import { NO_THERMAL } from './growthCompute';
 import type { ViewFactory } from './types';
 
 type CompareResponse = Extract<WorkerResponse, { type: 'compare' }>;
@@ -44,7 +45,7 @@ export const compareView: ViewFactory = (root, store, client) => {
     let holdover = '—';
     if (req) {
       const times = logTimes(cs.dt, Math.max(cs.duration, req.duration));
-      const sig = estimateSigma(benchToSpec(dut), { method: 'constant', Tm: effectiveTm(s.scenario, 'clock'), fix: cs.fix, driftKnowledge: s.scenario.driftKnowledge, dt: cs.dt, profile: s.scenario.temperature, includeThermal: s.scenario.includeThermal }, times);
+      const sig = estimateSigma(benchToSpec(dut), { method: 'constant', Tm: effectiveTm(s.scenario, 'clock'), fix: cs.fix, driftKnowledge: s.scenario.driftKnowledge, dt: cs.dt, ...NO_THERMAL }, times);
       const t = timeToRequirement(times, Float64Array.from(sig, v => v * req.sigma), req.value);
       holdover = t === null ? 'holds requirement for the whole span' : fmtTime(t);
     }

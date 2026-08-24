@@ -19,7 +19,7 @@ export const EXAMPLES = {
   fudge: ex(() => { const s = defaultState(); s.bench = [P('lsm6dsl-gyro')]; s.selected = 'lsm6dsl-gyro'; s.scenario.Tm = 3600; s.scenario.estimateMethods = ['fudge', 'constant', 'gm']; return { ...s, view: 'growth' as const }; }),
   clocks: ex(() => { const s = defaultState(); s.bench = [P('cesium-5071a'), P('prs10-rb')]; s.selected = 'cesium-5071a'; s.scenario.runs = 100; return { ...s, view: 'growth' as const }; }),
   dmtd: ex(() => { const s = defaultState(); s.bench = [P('rafs'), P('cesium-5071a'), P('tcxo'), P('ocxo')]; s.selected = 'rafs'; s.scenario.compare = { dut: 'rafs', ref: 'cesium-5071a', osc: 'tcxo', leak: 0, floorQ: 1e-12 }; return { ...s, view: 'compare' as const }; }),
-  thermal: ex(() => { const s = defaultState(); const o = P('ocxo'); o.thermal = { tempco: 0.02, tauTh: 600 }; s.bench = [o]; s.selected = 'ocxo'; s.scenario.temperature = { kind: 'sinusoid', amplitude: 5, period: 5400 }; return { ...updateDomain(s, 'clock', ds => { ds.duration = 6 * 3600; ds.requirements = [{ id: 'c1', value: 1e-6, sigma: 3, duration: 3 * 3600 }]; ds.activeRequirement = 'c1'; }), view: 'growth' as const }; }),
+  thermal: ex(() => { const s = defaultState(); const o = P('ocxo'); o.thermal = { tempco: 0.02, tauTh: 600 }; s.bench = [o]; s.selected = 'ocxo'; s.scenario.compareBy = 'thermal'; return { ...updateDomain(s, 'clock', ds => { ds.duration = 6 * 3600; ds.requirements = [{ id: 'c1', value: 1e-6, sigma: 3, duration: 3 * 3600 }]; ds.activeRequirement = 'c1'; }), view: 'growth' as const }; }),
 };
 
 const link = (hash: string) => h('p', {}, h('a', { href: hash }, 'load this example →'));
@@ -69,12 +69,11 @@ export const guideView: ViewFactory = (root) => {
         'Set the ', dfn('leak'), ' to 0.01 and watch the TCXO reappear at long τ.'),
       link(EXAMPLES.dmtd)),
     h('section', {},
-      h('h3', {}, 'Thermal: what the ADEV never told you'),
+      h('h3', {}, 'Thermal: a requirement you hand the thermal team'),
       h('p', {},
-        'An ADEV is measured on a bench at constant temperature. ',
-        'Your mission is not at constant temperature. ',
-        'A tempco times an orbital temperature swing produces error the formulas never see; only the simulated truth carries it. ',
-        'Load the example and compare the thermal readout against the formula lines.'),
+        'An ADEV is measured on a bench at constant temperature; your mission is not so lucky. ',
+        'The thermal view asks one question: how much sustained temperature offset can this device absorb and still meet the requirement? ',
+        'The answer is a number in kelvin. It is not yours to tune — it is a requirement you ', dfn('flowdown', 'flow down'), ' to the thermal team, with margin.'),
       link(EXAMPLES.thermal)),
   ));
   return { update: () => {}, destroy: () => root.replaceChildren() };

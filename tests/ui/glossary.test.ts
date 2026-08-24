@@ -9,4 +9,8 @@ describe('glossary', () => {
       expect(GLOSSARY[t]!.long.length).toBeGreaterThan(60);
     }
   });
+  it('defines the v1.2 thermal entries', () => {
+    expect(GLOSSARY.thermal!.long).toMatch(/sustained/);
+    expect(GLOSSARY.flowdown!.short).toMatch(/another team/);
+  });
 });

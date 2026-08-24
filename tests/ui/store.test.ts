@@ -123,4 +123,15 @@ describe('per-domain scenario (spec §9.5)', () => {
     expect(back).not.toBeNull();
     expect(back!.scenario.byDomain.gyro.dt).toBe(0.1);
   });
+  it('drops the legacy temperature/includeThermal fields from old hashes', () => {
+    const s = defaultState();
+    const raw = JSON.parse(atob(toHash(s).replace(/-/g, '+').replace(/_/g, '/'))) as { scenario: Record<string, unknown> };
+    raw.scenario.temperature = { kind: 'sinusoid', amplitude: 5, period: 5400 };
+    raw.scenario.includeThermal = true;
+    const h = btoa(JSON.stringify(raw)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const back = fromHash(h);
+    expect(back).not.toBeNull();
+    expect('temperature' in back!.scenario).toBe(false);
+    expect('includeThermal' in back!.scenario).toBe(false);
+  });
 });
