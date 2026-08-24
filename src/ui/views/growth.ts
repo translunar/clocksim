@@ -65,7 +65,12 @@ export const growthView: ViewFactory = (root, store, client) => {
     const times = growthTimes({ spec, scenario: sc, dom: d.domain, req });
     const conv = (a: Float64Array) => Float64Array.from(a, eu.fromSI);
     const k = req?.sigma ?? 1;
-    const reset = { resetScales: !(keepZoom && main.hasUserZoom()) };
+    // Read lazily, at the setData call: a defs change makes setSeries/setBands rebuild the uPlot
+    // instance, which clears its userZoomed flag. Capturing the flag up front meant a mode switch
+    // under an active drag-zoom passed resetScales:false computed from the *pre-rebuild* chart, so
+    // the new mode's data was drawn against the old mode's scale range (thermal's ΔT = 10 K curves
+    // clipped off-chart). Calling it after those two lines reads the post-rebuild truth.
+    const reset = () => ({ resetScales: !(keepZoom && main.hasUserZoom()) });
     const reqLines = () => {
       main.clearLines();
       if (req) { main.addHLine(eu.fromSI(req.value), `requirement ${fmtSci(eu.fromSI(req.value))} ${eu.label} (${k}σ)`); main.addVLine(req.duration, fmtTime(req.duration)); }
@@ -78,7 +83,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       const curves = computeDeviceCurves(devs, sc, d.domain, req, times);
       main.setSeries(curves.map((c, i) => ({ label: `${c.name} (${METHOD_LABEL[sc.compareMethod]}, ${k}σ, formula)`, color: PALETTE[i % 8]!, dash: [6, 3] })));
       main.setBands([]);
-      main.setData(times, curves.map(c => conv(c.scaled)), reset);
+      main.setData(times, curves.map(c => conv(c.scaled)), reset());
       main.setGhosts(times, [], GHOST_COLOR);
       reqLines();
       readout.replaceChildren(...curves.map(c => h('div', {},
@@ -100,7 +105,7 @@ export const growthView: ViewFactory = (root, store, client) => {
         ...DELTA_T_LEVELS.map((dT, i) => ({ label: `ΔT = ${dT} K sustained`, color: PALETTE[(i + 1) % 8]!, width: 2 })),
       ]);
       main.setBands([[1, 2]]);
-      main.setData(grid, [mc ? conv(mc.p50) : null, env ? conv(env) : null, ...fam.map(f => (f ? conv(f) : null))], reset);
+      main.setData(grid, [mc ? conv(mc.p50) : null, env ? conv(env) : null, ...fam.map(f => (f ? conv(f) : null))], reset());
       main.setGhosts(grid, mc ? mc.sample.map(conv) : [], GHOST_COLOR);
       reqLines();
       const envAtReq = mc && env && req ? valueAt(mc.times, env, req.duration) : null;
@@ -113,7 +118,7 @@ export const growthView: ViewFactory = (root, store, client) => {
             ? h('div', {}, flowLabel, h('b', {}, '…'))
             : (() => {
                 const dT = flowdown(mc.times, env, tempcoSI, req);
-                if (dT === null) return h('div', {}, flowLabel, h('b', {}, '—'));
+                if (dT === null) return h('div', {}, flowLabel, h('b', {}, '—'), 'the requirement duration lies outside the simulated time grid');
                 return dT <= 0
                   ? h('div', { class: 'warn' }, flowLabel, h('b', {}, 'requirement not met even at ΔT = 0'), 'the noise alone breaks the requirement — thermal control cannot save it')
                   : h('div', {}, flowLabel, h('b', {}, `hold sustained |ΔT| below ${Number(dT.toPrecision(2))} K`), 'quote it to the thermal team with margin');
@@ -138,7 +143,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       { label: `${PCT_LABEL[(req?.sigma ?? 1) as 1 | 2 | 3]} %ile of ${sc.runs} runs`, color: PALETTE[0]!, width: 3, band: true },
     ]);
     main.setBands([[est.length + 1, est.length + 2]]);
-    main.setData(mc ? mc.times : times, [...est.map(c => conv(c.scaled)), medianCurve ? conv(medianCurve) : null, mcS ? conv(mcS.curve) : null], reset);
+    main.setData(mc ? mc.times : times, [...est.map(c => conv(c.scaled)), medianCurve ? conv(medianCurve) : null, mcS ? conv(mcS.curve) : null], reset());
     main.setGhosts(mc ? mc.times : times, mc ? mc.sample.map(conv) : [], GHOST_COLOR);
     reqLines();
     readout.replaceChildren(
@@ -176,7 +181,7 @@ export const growthView: ViewFactory = (root, store, client) => {
       h('div', { class: 'row' },
         h('label', {}, 'Compare by ', segmented(
           [{ value: 'strategy', label: 'strategy' }, { value: 'device', label: 'device' }, { value: 'thermal', label: 'thermal' }],
-          mode, v => set(x => { x.compareBy = v as CompareBy; }), { key: 'growth:compareby' })),
+          mode, v => set(x => { x.compareBy = v as CompareBy; }), { key: controlKey(['growth', 'compareby']) })),
         // §10.1: the single-method select exists only in device mode — strategy has its checkboxes,
         // and thermal compares against the simulated envelope, which no formula choice can alter.
         ...(mode === 'device'
