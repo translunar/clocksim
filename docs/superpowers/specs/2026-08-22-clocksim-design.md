@@ -430,3 +430,105 @@ subsample and a median (`p50`) for §9.7's spaghetti and band, and the
 `compare` response gains `lo`/`hi` confidence bounds for the measured
 curve (so the DMTD tab can show single-realization ADEV scatter honestly);
 all other messages are unchanged.
+
+## 10. Compare-by on the Error-growth chart (v1.2, 2026-08-23)
+
+Approved 2026-08-23 after live use. Two motivations. First, the v1 thermal
+model (ambient profile, per-device lag, include-in-truth toggle) demands
+knowledge that belongs to a thermal engineer, not a GNC engineer — the tool
+should state the *consequence* of a temperature-control error and let the
+thermal team decide whether they can hold it. Second, there was no way to
+co-plot several devices under one strategy. Where this section conflicts
+with §3.6 or §9.4, this section governs. The §3.6 engine code stays; only
+its UI dies.
+
+### 10.1 The control
+
+A segmented `Compare by: [strategy | device | thermal]` sits at the top of
+the Error-growth tab. State: `scenario.compareBy` (default `'strategy'`, in
+the hash). Exactly one dimension varies per mode; the other two are pinned.
+
+| mode     | varies                                   | pinned                  |
+|----------|------------------------------------------|-------------------------|
+| strategy | estimate methods                         | one device, no thermal  |
+| device   | bench devices of the active domain       | one method, no thermal  |
+| thermal  | sustained ΔT ∈ {0, 0.1, 1, 10} K         | one device              |
+
+Device mode has a single-method select bound to a new
+`scenario.compareMethod` (default `'constant'`, in the hash). It appears
+only there: strategy mode keeps its `estimateMethods` checkboxes, and
+thermal mode needs no method at all — its noise curve is the simulated
+envelope, not a formula.
+
+### 10.2 strategy mode
+
+v1.1 behavior unchanged — multi-method dashed formulas, MC spaghetti, band,
+percentile envelope, contributions stack — minus every thermal control and
+the thermal readout row (see §10.5).
+
+### 10.3 device mode
+
+- Every bench device of the active domain is co-plotted: one dashed
+  analytic curve per device (PALETTE order), all computed with
+  `compareMethod`, all scaled by the requirement's kσ.
+- No simulation in this mode — redraws are instant. The intro says so:
+  formulas only; switch to *strategy* for simulated truth. The
+  contributions stack is hidden.
+- Readout: one row per device — error at the requirement duration, and
+  time-to-requirement. The red requirement line and its duration marker
+  stay as in every mode.
+
+### 10.4 thermal mode
+
+The discipline interface: worst-case cost of a *sustained* temperature
+offset, stated against the device's own noise, read out as a flowdown
+requirement on thermal control.
+
+- The selected device's normal Monte Carlo runs (thermal never included —
+  see §10.5); the kσ percentile envelope is the **ΔT = 0** member of the
+  family.
+- Family curves, drawn solid in PALETTE order over the envelope:
+  `total_ΔT(t) = envelope_kσ(t) + |tempco|·ΔT·t` for
+  ΔT ∈ {0.1, 1, 10} K, labeled `ΔT = 0.1 K sustained`, etc. The addition
+  is deliberately worst-case linear, not RSS: a sustained offset is a
+  deterministic bias, not a noise. Sustained also makes the thermal lag
+  τ_th irrelevant (steady state) — which is exactly why "sustained" was
+  chosen over profiles. `tempco` converts from datasheet units via
+  `tempcoToSI`.
+- The dashed formula lines are hidden in this mode (the envelope carries
+  the noise); the spaghetti stays. Before the first MC batch arrives the
+  family and readout show the same `…` the simulated-truth row shows today.
+- Readout, the flowdown:
+  `ΔT_max = (req.value − envelope_kσ(t_req)) / (|tempco|·t_req)`,
+  shown as `hold sustained |ΔT| below X K to meet the requirement`.
+  Degenerate cases: envelope alone ≥ requirement → `requirement not met
+  even at ΔT = 0`; no requirement set → `—` with a hint to set one; no
+  thermal block or tempco = 0 → family suppressed and a hint to set a
+  tempco on the Devices tab.
+
+### 10.5 Removals
+
+- Growth tab: the Temperature-profile select, its parameter fields, and the
+  "include thermal in truth" checkbox are removed.
+- Scenario state: `temperature` and `includeThermal` are removed;
+  `sanitizeScenario` silently drops them from old hashes. Scenario gains
+  `compareBy` and `compareMethod`.
+- The `thermal (truth only)` readout row and the thermal line in the
+  contributions stack (they can no longer be nonzero).
+- Devices tab: the thermal expander keeps the tempco field (thermal mode
+  now consumes it) and drops the `thermal lag` input; `tauTh` survives in
+  device JSON untouched.
+- Worker protocol unchanged: every view now sends
+  `profile: {kind:'none'}, includeThermal: false`. The §3.6 engine code and
+  its tests stay — the physics is right; only the interface moved.
+- Glossary: the `thermal` entry is rewritten around sustained ΔT and
+  flowdown; a new `flowdown` entry is added. The Guide gains one worked
+  example: "what must thermal control hold?".
+
+### 10.6 Explicitly unchanged
+
+Everything else in §9; the engine and worker protocol; presets and their
+editability (thermal blocks stay in the JSON). The §5 suite stays green
+throughout, extended with tests for `compareBy`/`compareMethod`
+sanitization, the flowdown algebra including its degenerate cases, and
+device-mode multi-curve computation.
